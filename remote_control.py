@@ -11,10 +11,9 @@ class RemoteInterface(ApplicationSession):
     NAVIGATION_CHANNEL = 'nav.send'
 
     def send_serial(self, msg):
-        data = {'text': msg,
-                'sender': 'remote_control'
-                }
-        channel_layer.send(self.SERIAL_SEND_CHANNEL, data)
+        assert isinstance(msg, dict)
+        msg['sender'] = 'remote_control'
+        channel_layer.send(self.SERIAL_SEND_CHANNEL, msg)
 
     @staticmethod
     def _check_speed(speed):
@@ -88,12 +87,6 @@ class RemoteInterface(ApplicationSession):
         await self.register(move_to_waypoint, 'com.auv.move_to_waypoint')
         await self.register(stop, 'com.auv.stop')
         await self.register(start_trip, 'com.auv.start_trip')
-
-    def _enable_manual_control(self):
-        msg = {
-            'cmd': 'enable_manual_control',
-        }
-        self.send_serial(msg)
 
 
 if __name__ == '__main__':
