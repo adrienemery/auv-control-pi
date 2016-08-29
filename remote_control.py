@@ -1,5 +1,7 @@
+import asyncio
+
 from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
-from asgi import channel_layer
+from asgi import channel_layer, MOTHERSHIP_SEND_CHANNEL, MOTHERSHIP_UPDATE_CHANNEL
 
 
 class RemoteInterface(ApplicationSession):
@@ -7,13 +9,15 @@ class RemoteInterface(ApplicationSession):
     DEFAULT_TURN_SPEED = 0.5
     DEFAULT_FORWARD_SPEED = 0.5
     DEFAULT_REVERSE_SPEED = 0.5
-    SERIAL_SEND_CHANNEL = 'auv.send'
-    NAVIGATION_CHANNEL = 'nav.send'
 
-    def send_serial(self, msg):
+    @staticmethod
+    def _relay_cmd(msg):
+        """
+        Relay commands to Mothership using asgi channels
+        """
         assert isinstance(msg, dict)
         msg['sender'] = 'remote_control'
-        channel_layer.send(self.SERIAL_SEND_CHANNEL, msg)
+        channel_layer.send(MOTHERSHIP_SEND_CHANNEL, msg)
 
     @staticmethod
     def _check_speed(speed):
@@ -22,73 +26,99 @@ class RemoteInterface(ApplicationSession):
             raise ValueError(err_msg)
 
     async def onJoin(self, details):
+        """
+        Register functions for access via RPC
+        """
         print("session ready")
+        await self.register(self.move_right, 'com.mothership.move_right')
+        await self.register(self.move_left, 'com.mothership.move_left')
+        await self.register(self.move_forward, 'com.mothership.move_forward')
+        await self.register(self.move_reverse, 'com.mothership.move_reverse')
+        await self.register(self.move_to_waypoint, 'com.mothership.move_to_waypoint')
+        await self.register(self.stop, 'com.mothership.stop')
+        await self.register(self.start_trip, 'com.mothership.start_trip')
+        await self.update()
 
-        def move_right(speed=None):
-            speed = self.DEFAULT_TURN_SPEED or speed
-            self._check_speed(speed)
-            msg = {
-                'cmd': 'move_right',
-                'kwargs': {'speed': speed}
+    def move_right(self, speed=None):
+        speed = self.DEFAULT_TURN_SPEED or speed
+        self._check_speed(speed)
+        msg = {
+            'cmd': 'move_right',
+            'kwargs': {'speed': speed}
+        }
+        self._relay_cmd(msg)
+
+    def move_left(self, speed=None):
+        speed = self.DEFAULT_TURN_SPEED or speed
+        self._check_speed(speed)
+        msg = {
+            'cmd': 'move_left',
+            'kwargs': {'speed': speed}
+        }
+        self._relay_cmd(msg)
+
+    def move_forward(self, speed=None):
+        speed = self.DEFAULT_FORWARD_SPEED or speed
+        self._check_speed(speed)
+        msg = {
+            'cmd': 'move_left',
+            'kwargs': {'speed': speed}
+        }
+        self._relay_cmd(msg)
+
+    def move_reverse(self, speed=None):
+        speed = self.DEFAULT_REVERSE_SPEED or speed
+        self._check_speed(speed)
+        msg = {
+            'cmd': 'move_left',
+            'kwargs': {'speed': speed}
+        }
+        self._relay_cmd(msg)
+
+    def move_to_waypoint(self, lat, lon):
+        msg = {
+            'cmd': 'move_to_waypoint',
+            'kwargs': {
+                'lat': lat,
+                'lon': lon
             }
-            self.send_serial(msg)
+        }
+        self._relay_cmd(msg)
 
-        def move_left(speed=None):
-            speed = self.DEFAULT_TURN_SPEED or speed
-            self._check_speed(speed)
-            msg = {
-                'cmd': 'move_left',
-                'kwargs': {'speed': speed}
-            }
-            self.send_serial(msg)
+    def stop(self, ):
+        msg = {
+            'cmd': 'stop',
+        }
+        self._relay_cmd(msg)
 
-        def move_forward(speed=None):
-            speed = self.DEFAULT_FORWARD_SPEED or speed
-            self._check_speed(speed)
-            msg = {
-                'cmd': 'move_left',
-                'kwargs': {'speed': speed}
-            }
-            self.send_serial(msg)
+    def start_trip(self, trip_id):
+        msg = {
+            'cmd': 'stop',
+        }
+        self._relay_cmd(msg)
 
-        def move_reverse(speed=None):
-            speed = self.DEFAULT_REVERSE_SPEED or speed
-            self._check_speed(speed)
-            msg = {
-                'cmd': 'move_left',
-                'kwargs': {'speed': speed}
-            }
-            self.send_serial(msg)
-
-        def move_to_waypoint(lat, lon):
-            msg = {
-                'cmd': 'move_to_waypoint',
-                'kwargs': {
-                    'lat': lat,
-                    'lon': lon
-                }
-            }
-            self.send_serial(msg)
-
-        def stop():
-            msg = {
-                'cmd': 'stop',
-            }
-            self.send_serial(msg)
-
-        def start_trip(trip_id):
-            pass
-
-        # register functions on for RPC
-        await self.register(move_right, 'com.auv.move_right')
-        await self.register(move_left, 'com.auv.move_left')
-        await self.register(move_forward, 'com.auv.move_forward')
-        await self.register(move_reverse, 'com.auv.move_reverse')
-        await self.register(move_to_waypoint, 'com.auv.move_to_waypoint')
-        await self.register(stop, 'com.auv.stop')
-        await self.register(start_trip, 'com.auv.start_trip')
+    async def update(self):
+        """
+        Broadcast updates at 1Hz
+        """
+        while True:
+            await asyncio.sleep(0.1)
+            channels = [MOTHERSHIP_UPDATE_CHANNEL]
+            while True:
+                _, data = channel_layer.receive_many(channels)
+                if data:
+                    print('Got data: {}'.format(data))
+                    # publish data
+                    self.publish('com.mothership.onupdate', data)
+                else:
+                    break
 
 
 if __name__ == '__main__':
-    runner = ApplicationRunner(url=u"ws://localhost:8080/ws", realm=u"realm1")
+    import configparser
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    url = config['crossbar']['url']
+    realm = config['crossbar']['realm']
+    runner = ApplicationRunner(url=url, realm=realm)
     runner.run(RemoteInterface)

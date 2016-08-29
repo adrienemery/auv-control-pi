@@ -1,41 +1,94 @@
-import serial
-from serial.tools import list_ports
+import curio
 
-from asgi import channel_layer
-
-
-class PortNotFound(serial.SerialException):
-    pass
+from collections import deque
+from asgi import channel_layer, MOTHERSHIP_SEND_CHANNEL, MOTHERSHIP_UPDATE_CHANNEL
 
 
-class AUVController:
+class Mothership:
 
     def __init__(self):
-        ports = list(list_ports.grep('usb'))
-        if not ports:
-            print('No USB ports found')
-            self._serial = None
-        else:
-            self._serial = serial.Serial(port=ports[0].device, timeout=0, write_timeout=0.1)
+        self.lat = None
+        self.lon = None
+        self.heading = None
+        self.speed = None
+        self.water_temperature = None
+        self.command_buffer = deque()
 
-    def move_right(self, speed=None, **kwargs):
-        print('move right with speed {}'.format(speed))
+    async def move_right(self, speed=None, **kwargs):
+        self.send('move right with speed {}'.format(speed))
 
-    def move_left(self, speed=None, **kwargs):
-        print('move left with speed {}'.format(speed))
+    async def move_left(self, speed=None, **kwargs):
+        self.send('move left with speed {}'.format(speed))
+
+    async def move_forward(self, speed=None, **kwargs):
+        self.send('move forward with speed {}'.format(speed))
+
+    async def move_reverse(self, speed=None, **kwargs):
+        self.send('move reverse with speed {}'.format(speed))
+
+    async def stop(self, **kwargs):
+        self.send('stop')
+
+    async def move_to_waypoint(self, lat, lon, **kwargs):
+        self.send('moving to waypoint: ({}, {})'.format(lat, lon))
+
+    async def start_trip(self, trip):
+
+    async def send(self, msg):
+        self.command_buffer.append(msg)
+
+    async def run(self):
+        await curio.spawn(self._flush_command_buffer())
+        await curio.spawn(self._update())
+
+    async def _flush_command_buffer(self):
+        while True:
+            try:
+                print(self.command_buffer.popleft())
+            except IndexError:
+                pass
+            await curio.sleep(0.05)
+
+    def _parse_raw_data(self, raw_data):
+        # TODO handle list of raw_data
+        return {}
+
+    async def _update(self):
+        """
+        Read in data from serial buffer and broadcast on
+        the auv update channel.
+        """
+        while True:
+            update_attrs = ('lat', 'lon', 'heading', 'speed', 'water_temperature')
+            msg = {attr: getattr(self, attr) for attr in update_attrs}
+            channel_layer.send(MOTHERSHIP_UPDATE_CHANNEL, msg)
+            await curio.sleep(1)
 
 
-def main():
-    controller = AUVController()
+async def main():
+    controller = Mothership()
+    await curio.spawn(controller.run())
+
+    # main loop
     while True:
         # check for commands to send to auv
-        channels = ['serial.send']
-        channel, data = channel_layer.receive_many(channels)
-        if data:
-            print(data)
-            fnc = getattr(controller, data.get('cmd'))
-            if fnc and callable(fnc):
-                fnc(**data.get('kwargs'))
+        channels = [MOTHERSHIP_SEND_CHANNEL]
+        # read all messages off of channel
+        while True:
+            _, data = channel_layer.receive_many(channels)
+            if data:
+                print(data)
+                try:
+                    fnc = getattr(controller, data.get('cmd'))
+                except AttributeError:
+                    pass
+                else:
+                    if fnc and callable(fnc):
+                        await fnc(**data.get('kwargs', {}))
+            else:
+                break
+        await curio.sleep(0.05)  # chill out for a bit
+
 
 if __name__ == '__main__':
-    main()
+    curio.run(main())
