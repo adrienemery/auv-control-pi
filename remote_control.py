@@ -25,6 +25,17 @@ class RemoteInterface(ApplicationSession):
             err_msg = 'speed must be in range 0 <= speed <= 1, got {}'.format(speed)
             raise ValueError(err_msg)
 
+    def onConnect(self):
+        print('Connecting to {} as {}'.format(self.config.realm, 'auv'))
+        self.join(realm=self.config.realm, authmethods=['ticket'], authid='auv')
+
+    def onChallenge(self, challenge):
+        if challenge.method == 'ticket':
+            print("WAMP-Ticket challenge received: {}".format(challenge))
+            return '18d4120fa5e2b7c6b41940bdc8834a664c30e3b3659cdf0536e2dce17a01f6c3'
+        else:
+            raise Exception("Invalid authmethod {}".format(challenge.method))
+
     async def onJoin(self, details):
         """
         Register functions for access via RPC
