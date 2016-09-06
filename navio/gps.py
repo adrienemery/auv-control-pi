@@ -208,7 +208,7 @@ class GPS:
             buffer = ubl.bus.xfer2([100])
             for byt in buffer:
                 ubl.scan_ubx(byt)
-                if ubl.mess_queue.empty() is not True:
+                if not ubl.mess_queue.empty():
                     msg = ubl.parse_ubx()
                     self._update(msg)
 

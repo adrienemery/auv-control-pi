@@ -1,7 +1,7 @@
 import curio
 
 from collections import deque
-from asgi import channel_layer, MOTHERSHIP_SEND_CHANNEL, MOTHERSHIP_UPDATE_CHANNEL
+from asgi import channel_layer, AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL
 
 
 class Mothership:
@@ -32,7 +32,9 @@ class Mothership:
     async def move_to_waypoint(self, lat, lon, **kwargs):
         self.send('moving to waypoint: ({}, {})'.format(lat, lon))
 
-    async def start_trip(self, trip):
+    async def start_trip(self, trip_id, **kwargs):
+        # download waypoints
+        pass
 
     async def send(self, msg):
         self.command_buffer.append(msg)
@@ -61,7 +63,7 @@ class Mothership:
         while True:
             update_attrs = ('lat', 'lon', 'heading', 'speed', 'water_temperature')
             msg = {attr: getattr(self, attr) for attr in update_attrs}
-            channel_layer.send(MOTHERSHIP_UPDATE_CHANNEL, msg)
+            channel_layer.send(AUV_UPDATE_CHANNEL, msg)
             await curio.sleep(1)
 
 
@@ -72,7 +74,7 @@ async def main():
     # main loop
     while True:
         # check for commands to send to auv
-        channels = [MOTHERSHIP_SEND_CHANNEL]
+        channels = [AUV_SEND_CHANNEL]
         # read all messages off of channel
         while True:
             _, data = channel_layer.receive_many(channels)

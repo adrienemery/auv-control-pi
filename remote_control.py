@@ -1,7 +1,7 @@
 import asyncio
 
 from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
-from asgi import channel_layer, MOTHERSHIP_SEND_CHANNEL, MOTHERSHIP_UPDATE_CHANNEL
+from asgi import channel_layer, AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL
 
 
 class RemoteInterface(ApplicationSession):
@@ -17,7 +17,7 @@ class RemoteInterface(ApplicationSession):
         """
         assert isinstance(msg, dict)
         msg['sender'] = 'remote_control'
-        channel_layer.send(MOTHERSHIP_SEND_CHANNEL, msg)
+        channel_layer.send(AUV_SEND_CHANNEL, msg)
 
     @staticmethod
     def _check_speed(speed):
@@ -41,14 +41,15 @@ class RemoteInterface(ApplicationSession):
         Register functions for access via RPC
         """
         print("session ready")
-        await self.register(self.move_right, 'com.mothership.move_right')
-        await self.register(self.move_left, 'com.mothership.move_left')
-        await self.register(self.move_forward, 'com.mothership.move_forward')
-        await self.register(self.move_reverse, 'com.mothership.move_reverse')
-        await self.register(self.move_to_waypoint, 'com.mothership.move_to_waypoint')
-        await self.register(self.stop, 'com.mothership.stop')
-        await self.register(self.start_trip, 'com.mothership.start_trip')
-        await self.update()
+        await self.register(self.move_right, 'com.auv.move_right')
+        await self.register(self.move_left, 'com.auv.move_left')
+        await self.register(self.move_forward, 'com.auv.move_forward')
+        await self.register(self.move_reverse, 'com.auv.move_reverse')
+        await self.register(self.move_to_waypoint, 'com.auv.move_to_waypoint')
+        await self.register(self.stop, 'com.auv.stop')
+        await self.register(self.start_trip, 'com.auv.start_trip')
+        # await self.update()
+        await self.heartbeat()
 
     def move_right(self, speed=None):
         speed = self.DEFAULT_TURN_SPEED or speed
@@ -114,15 +115,22 @@ class RemoteInterface(ApplicationSession):
         """
         while True:
             await asyncio.sleep(0.1)
-            channels = [MOTHERSHIP_UPDATE_CHANNEL]
+            channels = [AUV_UPDATE_CHANNEL]
             while True:
                 _, data = channel_layer.receive_many(channels)
                 if data:
                     print('Got data: {}'.format(data))
                     # publish data
-                    self.publish('com.mothership.onupdate', data)
+                    self.publish('com.auv.update', data)
                 else:
                     break
+
+    async def heartbeat(self):
+        while True:
+            await asyncio.sleep(1)
+            # publish data
+            self.publish('com.auv.heartbeat', 'ok')
+            print('heartbeat')
 
 
 if __name__ == '__main__':
