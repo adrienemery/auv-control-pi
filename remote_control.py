@@ -18,6 +18,7 @@ class RemoteInterface(ApplicationSession):
         assert isinstance(msg, dict)
         msg['sender'] = 'remote_control'
         channel_layer.send(AUV_SEND_CHANNEL, msg)
+        print('sending cmd: {}'.format(msg))
 
     @staticmethod
     def _check_speed(speed):
@@ -49,7 +50,7 @@ class RemoteInterface(ApplicationSession):
         await self.register(self.stop, 'com.auv.stop')
         await self.register(self.start_trip, 'com.auv.start_trip')
         # await self.update()
-        await self.heartbeat()
+        # await self.heartbeat()
 
     def move_right(self, speed=None):
         speed = self.DEFAULT_TURN_SPEED or speed
