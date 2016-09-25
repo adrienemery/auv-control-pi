@@ -9,9 +9,9 @@ class Mothership:
     def __init__(self):
         self.lat = None
         self.lon = None
-        self.heading = None
-        self.speed = None
-        self.water_temperature = None
+        self.heading = 0
+        self.speed = 0
+        self.water_temperature = 0
         self.command_buffer = deque()
 
     async def move_right(self, speed=None, **kwargs):

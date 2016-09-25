@@ -4,6 +4,7 @@ from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
 from asgi import channel_layer, AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL
 
 
+
 class RemoteInterface(ApplicationSession):
 
     DEFAULT_TURN_SPEED = 0.5
