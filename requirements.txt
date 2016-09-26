@@ -6,6 +6,7 @@ crossbar==0.15.0
 Django==1.10.1
 envitro==0.4.2
 ipython==5.0.0
+pygc==1.0.0
 PyNaCl==1.0.1
 pyOpenSSL==16.0.0
 redis==2.10.5

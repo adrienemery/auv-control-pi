@@ -2,7 +2,7 @@ from django.db import models
 from solo.models import SingletonModel
 
 
-class AUVConfiguration(SingletonModel):
+class Configuration(SingletonModel):
 
     auth_token = models.CharField(max_length=1024, blank=True)
     update_frequency = models.DecimalField(blank=True, null=True,

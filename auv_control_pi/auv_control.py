@@ -1,14 +1,14 @@
 import curio
 
 from collections import deque
-from asgi import channel_layer, AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL
+from .asgi import channel_layer, AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL
 
 
 class Mothership:
 
     def __init__(self):
         self.lat = None
-        self.lon = None
+        self.lng = None
         self.heading = 0
         self.speed = 0
         self.water_temperature = 0
@@ -61,7 +61,7 @@ class Mothership:
         the auv update channel.
         """
         while True:
-            update_attrs = ('lat', 'lon', 'heading', 'speed', 'water_temperature')
+            update_attrs = ('lat', 'lng', 'heading', 'speed', 'water_temperature')
             msg = {attr: getattr(self, attr) for attr in update_attrs}
             channel_layer.send(AUV_UPDATE_CHANNEL, msg)
             await curio.sleep(1)

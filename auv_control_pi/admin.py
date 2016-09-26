@@ -2,9 +2,9 @@ from django.contrib import admin
 from django.contrib.auth.models import User
 from django.contrib.auth.models import Group
 from solo.admin import SingletonModelAdmin
-from .models import AUVConfiguration
+from .models import Configuration
 
-admin.site.register(AUVConfiguration, SingletonModelAdmin)
+admin.site.register(Configuration, SingletonModelAdmin)
 
 
 # remove auth models from admin
