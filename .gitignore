@@ -1,5 +1,8 @@
 .idea/
 .crossbar/
+.cache/
+.ipynb_checkpoints/
+*.ipynb
 __pycache__/
 config.ini
 *.sqlite3

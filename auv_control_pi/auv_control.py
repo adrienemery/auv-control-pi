@@ -1,18 +1,27 @@
 import curio
 
 from collections import deque
-from .asgi import channel_layer, AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL
+
+# from navio import pwm
+from .asgi import channel_layer, AUV_SEND_CHANNEL, auv_update_group
+from .motor import Motor
+from .config import config
 
 
 class Mothership:
+    """Main entry point for controling the Mothership
+    """
 
     def __init__(self):
-        self.lat = None
-        self.lng = None
+        self.lat = 0.0
+        self.lng = 0.0
         self.heading = 0
         self.speed = 0
         self.water_temperature = 0
         self.command_buffer = deque()
+
+        self.left_motor = Motor(config.left_motor_channel)
+        self.right_motor = Motor(config.right_motor_channel)
 
     async def move_right(self, speed=None, **kwargs):
         self.send('move right with speed {}'.format(speed))
@@ -63,12 +72,12 @@ class Mothership:
         while True:
             update_attrs = ('lat', 'lng', 'heading', 'speed', 'water_temperature')
             msg = {attr: getattr(self, attr) for attr in update_attrs}
-            channel_layer.send(AUV_UPDATE_CHANNEL, msg)
+            # broadcast auv data to group
+            auv_update_group.send(msg)
             await curio.sleep(1)
 
 
-async def main():
-    controller = Mothership()
+async def main(controller):
     await curio.spawn(controller.run())
 
     # main loop
@@ -92,5 +101,7 @@ async def main():
         await curio.sleep(0.05)  # chill out for a bit
 
 
+mothership = Mothership()
+
 if __name__ == '__main__':
-    curio.run(main())
+    curio.run(main(controller=mothership))

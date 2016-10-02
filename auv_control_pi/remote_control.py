@@ -1,7 +1,11 @@
 import asyncio
+import logging
 
 from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
-from .asgi import channel_layer, AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL
+from channels import Channel, Group
+from .asgi import channel_layer, AUV_SEND_CHANNEL, auv_update_group
+
+logger = logging.getLogger('remote_control')
 
 
 class RemoteInterface(ApplicationSession):
@@ -10,15 +14,22 @@ class RemoteInterface(ApplicationSession):
     DEFAULT_FORWARD_SPEED = 0.5
     DEFAULT_REVERSE_SPEED = 0.5
 
-    @staticmethod
-    def _relay_cmd(msg):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # generate a unique channel name for ourselves
+        self.auv_update_channel_name = channel_layer.new_channel('remote_control')
+        # subscribe to the auv update channel
+        auv_update_group.add(self.auv_update_channel_name)
+        self.auv_channel = Channel(AUV_SEND_CHANNEL, channel_layer=channel_layer)
+
+    def _relay_cmd(self, msg):
         """
         Relay commands to Mothership using asgi channels
         """
         assert isinstance(msg, dict)
         msg['sender'] = 'remote_control'
-        channel_layer.send(AUV_SEND_CHANNEL, msg)
-        print('sending cmd: {}'.format(msg))
+        self.auv_channel.send(msg)
+        logger.debug('sending cmd: {}'.format(msg))
 
     @staticmethod
     def _check_speed(speed):
@@ -27,12 +38,12 @@ class RemoteInterface(ApplicationSession):
             raise ValueError(err_msg)
 
     def onConnect(self):
-        print('Connecting to {} as {}'.format(self.config.realm, 'auv'))
+        logger.info('Connecting to {} as {}'.format(self.config.realm, 'auv'))
         self.join(realm=self.config.realm, authmethods=['ticket'], authid='auv')
 
     def onChallenge(self, challenge):
         if challenge.method == 'ticket':
-            print("WAMP-Ticket challenge received: {}".format(challenge))
+            logger.debug("WAMP-Ticket challenge received: {}".format(challenge))
             return '18d4120fa5e2b7c6b41940bdc8834a664c30e3b3659cdf0536e2dce17a01f6c3'
         else:
             raise Exception("Invalid authmethod {}".format(challenge.method))
@@ -41,7 +52,7 @@ class RemoteInterface(ApplicationSession):
         """
         Register functions for access via RPC
         """
-        print("session ready")
+        logger.info("Joined Crossbar Session")
         await self.register(self.move_right, 'com.auv.move_right')
         await self.register(self.move_left, 'com.auv.move_left')
         await self.register(self.move_forward, 'com.auv.move_forward')
@@ -116,12 +127,12 @@ class RemoteInterface(ApplicationSession):
         """
         while True:
             await asyncio.sleep(0.1)
-            channels = [AUV_UPDATE_CHANNEL]
+            channels = [self.auv_update_channel_name]
             while True:
                 _, data = channel_layer.receive_many(channels)
                 if data:
-                    print('Got data: {}'.format(data))
-                    # publish data
+                    logger.debug('Auv Update Data: {}'.format(data))
+                    # publish data to wamp
                     self.publish('com.auv.update', data)
                 else:
                     break
@@ -131,7 +142,7 @@ class RemoteInterface(ApplicationSession):
             await asyncio.sleep(1)
             # publish data
             self.publish('com.auv.heartbeat', 'ok')
-            print('heartbeat')
+            logger.debug('heartbeat')
 
 
 if __name__ == '__main__':
