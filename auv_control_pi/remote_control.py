@@ -10,9 +10,9 @@ logger = logging.getLogger('remote_control')
 
 class RemoteInterface(ApplicationSession):
 
-    DEFAULT_TURN_SPEED = 0.5
-    DEFAULT_FORWARD_SPEED = 0.5
-    DEFAULT_REVERSE_SPEED = 0.5
+    DEFAULT_TURN_SPEED = 50
+    DEFAULT_FORWARD_SPEED = 50
+    DEFAULT_REVERSE_SPEED = 50
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -33,8 +33,8 @@ class RemoteInterface(ApplicationSession):
 
     @staticmethod
     def _check_speed(speed):
-        if not 0 <= speed <= 1:
-            err_msg = 'speed must be in range 0 <= speed <= 1, got {}'.format(speed)
+        if not -100 <= speed <= 100:
+            err_msg = 'speed must be in range -100 <= speed <= 100, got {}'.format(speed)
             raise ValueError(err_msg)
 
     def onConnect(self):
@@ -57,11 +57,11 @@ class RemoteInterface(ApplicationSession):
         await self.register(self.move_left, 'com.auv.move_left')
         await self.register(self.move_forward, 'com.auv.move_forward')
         await self.register(self.move_reverse, 'com.auv.move_reverse')
-        await self.register(self.move_to_waypoint, 'com.auv.move_to_waypoint')
         await self.register(self.stop, 'com.auv.stop')
+        await self.register(self.move_to_waypoint, 'com.auv.move_to_waypoint')
         await self.register(self.start_trip, 'com.auv.start_trip')
-        # await self.update()
-        # await self.heartbeat()
+        await self.update()
+        await self.heartbeat()
 
     def move_right(self, speed=None):
         speed = self.DEFAULT_TURN_SPEED or speed
@@ -99,23 +99,24 @@ class RemoteInterface(ApplicationSession):
         }
         self._relay_cmd(msg)
 
-    def move_to_waypoint(self, lat, lon):
+    def move_to_waypoint(self, lat, lng):
         msg = {
             'cmd': 'move_to_waypoint',
             'kwargs': {
                 'lat': lat,
-                'lon': lon
+                'lng': lng
             }
         }
         self._relay_cmd(msg)
 
-    def stop(self, ):
+    def start_trip(self, waypoints):
         msg = {
-            'cmd': 'stop',
+            'cmd': 'start_trip',
+            'kwargs': waypoints
         }
         self._relay_cmd(msg)
 
-    def start_trip(self, trip_id):
+    def stop(self, ):
         msg = {
             'cmd': 'stop',
         }
@@ -139,7 +140,7 @@ class RemoteInterface(ApplicationSession):
 
     async def heartbeat(self):
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
             # publish data
             self.publish('com.auv.heartbeat', 'ok')
             logger.debug('heartbeat')

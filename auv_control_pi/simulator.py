@@ -1,7 +1,8 @@
 import time
+from collections import deque
 
 from pygc import great_circle
-from .utils import heading_to_point, distance_to_point, Point
+from .navigation import heading_to_point, distance_to_point, Point
 
 
 class GPS:
@@ -48,6 +49,7 @@ class Simulator:
         self.update_period = update_period
         self.speed = 0  # [m/s]
         self.arrived = False
+        self.waypoints = deque()
 
     def stop(self):
         self._running = False
@@ -56,6 +58,13 @@ class Simulator:
         self._target_waypoint = waypoint
         self._compass.heading = heading_to_point(self._current_location, waypoint)
         self.speed = 10
+
+    def start_trip(self, waypoints):
+        self.waypoints = deque(waypoints)
+        self.move_to_waypoint(self.waypoints.popleft())
+
+    def stop_trip(self):
+        self.waypoints = deque()
 
     def _update(self):
         """Update the current position and heading"""
@@ -67,6 +76,8 @@ class Simulator:
                                   latitude=self._current_location.lat,
                                   longitude=self._current_location.lng)
             self._current_location = Point(result['latitude'], result['longitude'])
+            self._gps.lat = self._current_location.lat
+            self._gps.lng = self._current_location.lng
 
         if self._target_waypoint:
             # update compass heading if we have a target waypoint
@@ -74,17 +85,19 @@ class Simulator:
                                                      self._target_waypoint)
             # check if we have hit our target
             if self._distane_to_target() <= self.TARGET_DISTANCE:
-                self.arrived = True
+                try:
+                    # if there are waypoints qued up keep going
+                    self.move_to_waypoint(self.waypoints.popleft())
+                except IndexError:
+                    # otherwise we have arrived
+                    self.arrived = True
 
     def _distane_to_target(self):
         return distance_to_point(self._current_location, self._target_waypoint)
 
     def run(self):
+        print('Starting simulation')
         self._running = True
         while self._running:
             self._update()
             time.sleep(self.update_period)
-
-
-
-

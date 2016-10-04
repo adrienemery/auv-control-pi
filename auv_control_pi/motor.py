@@ -19,9 +19,12 @@ class Motor:
 
     @speed.setter
     def speed(self, value):
-        """Must be value betweeon 0 and 100"""
-        # clamp the speed between 0 and 100
-        value = max(0, value)
+        """Must be value betweeon -100 and 100
+
+        Negative values indicate the motor is running in reverse.
+        """
+        # clamp the speed between -100 and 100
+        value = max(-100, value)
         value = min(100, value)
         # TODO set duty cycle of pwm that maps to speed
         self._speed = value
