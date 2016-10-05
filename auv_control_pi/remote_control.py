@@ -2,10 +2,11 @@ import asyncio
 import logging
 
 from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
-from channels import Channel, Group
+from channels import Channel
 from .asgi import channel_layer, AUV_SEND_CHANNEL, auv_update_group
+from .models import Configuration
 
-logger = logging.getLogger('remote_control')
+logger = logging.getLogger(__name__)
 
 
 class RemoteInterface(ApplicationSession):
@@ -17,7 +18,7 @@ class RemoteInterface(ApplicationSession):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # generate a unique channel name for ourselves
-        self.auv_update_channel_name = channel_layer.new_channel('remote_control')
+        self.auv_update_channel_name = channel_layer.new_channel('remote_control?')
         # subscribe to the auv update channel
         auv_update_group.add(self.auv_update_channel_name)
         self.auv_channel = Channel(AUV_SEND_CHANNEL, channel_layer=channel_layer)
@@ -29,7 +30,7 @@ class RemoteInterface(ApplicationSession):
         assert isinstance(msg, dict)
         msg['sender'] = 'remote_control'
         self.auv_channel.send(msg)
-        logger.debug('sending cmd: {}'.format(msg))
+        logger.info('sending cmd: {}'.format(msg))
 
     @staticmethod
     def _check_speed(speed):
@@ -43,8 +44,9 @@ class RemoteInterface(ApplicationSession):
 
     def onChallenge(self, challenge):
         if challenge.method == 'ticket':
-            logger.debug("WAMP-Ticket challenge received: {}".format(challenge))
-            return '18d4120fa5e2b7c6b41940bdc8834a664c30e3b3659cdf0536e2dce17a01f6c3'
+            logger.info("WAMP-Ticket challenge received: {}".format(challenge))
+            config = Configuration.get_solo()
+            return config.auth_token
         else:
             raise Exception("Invalid authmethod {}".format(challenge.method))
 
@@ -85,7 +87,7 @@ class RemoteInterface(ApplicationSession):
         speed = self.DEFAULT_FORWARD_SPEED or speed
         self._check_speed(speed)
         msg = {
-            'cmd': 'move_left',
+            'cmd': 'move_forward',
             'kwargs': {'speed': speed}
         }
         self._relay_cmd(msg)
@@ -94,7 +96,7 @@ class RemoteInterface(ApplicationSession):
         speed = self.DEFAULT_REVERSE_SPEED or speed
         self._check_speed(speed)
         msg = {
-            'cmd': 'move_left',
+            'cmd': 'move_reverse',
             'kwargs': {'speed': speed}
         }
         self._relay_cmd(msg)
@@ -148,9 +150,9 @@ class RemoteInterface(ApplicationSession):
 
 if __name__ == '__main__':
     import configparser
-    config = configparser.ConfigParser()
-    config.read('config.ini')
-    url = config['crossbar']['url']
-    realm = config['crossbar']['realm']
+    crossbar_config = configparser.ConfigParser()
+    crossbar_config.read('config.ini')
+    url = crossbar_config['crossbar']['url']
+    realm = crossbar_config['crossbar']['realm']
     runner = ApplicationRunner(url=url, realm=realm)
     runner.run(RemoteInterface)

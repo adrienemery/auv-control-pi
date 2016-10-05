@@ -1,8 +1,12 @@
+import logging
 import time
 from collections import deque
 
 from pygc import great_circle
 from .navigation import heading_to_point, distance_to_point, Point
+
+
+logger = logging.getLogger(__name__)
 
 
 class GPS:
@@ -36,12 +40,12 @@ class Simulator:
     TARGET_DISTANCE = 20  # meters
 
     def __init__(self, gps, compass,
-                 motor_port=None, motor_starboard=None,
+                 left_motor=None, right_motor=None,
                  update_period=1, current_location=None):
         self._gps = gps
         self._compass = compass
-        self._motor_port = motor_port
-        self._motor_starboard = motor_starboard
+        self._left_motor = left_motor
+        self._right_motor = right_motor
         self._running = False
         self._target_waypoint = None
         self._current_location = current_location or Point(lat=49.2827, lng=-123.1207)
@@ -64,20 +68,20 @@ class Simulator:
         self.move_to_waypoint(self.waypoints.popleft())
 
     def stop_trip(self):
+        self._target_waypoint = None
         self.waypoints = deque()
 
     def _update(self):
         """Update the current position and heading"""
-        if self.speed:
-            # update current position based on speed
-            distance = self.speed * self.update_period
-            result = great_circle(distance=distance,
-                                  azimuth=self._compass.heading,
-                                  latitude=self._current_location.lat,
-                                  longitude=self._current_location.lng)
-            self._current_location = Point(result['latitude'], result['longitude'])
-            self._gps.lat = self._current_location.lat
-            self._gps.lng = self._current_location.lng
+        # update current position based on speed
+        distance = self.speed * self.update_period
+        result = great_circle(distance=distance,
+                              azimuth=self._compass.heading,
+                              latitude=self._current_location.lat,
+                              longitude=self._current_location.lng)
+        self._current_location = Point(result['latitude'], result['longitude'])
+        self._gps.lat = self._current_location.lat
+        self._gps.lng = self._current_location.lng
 
         if self._target_waypoint:
             # update compass heading if we have a target waypoint
@@ -92,11 +96,21 @@ class Simulator:
                     # otherwise we have arrived
                     self.arrived = True
 
+        else:
+            # update heading and speed based on motor speeds
+            self.speed = (self._left_motor.speed + self._right_motor.speed) // 2
+            self._compass.heading += ((self._left_motor.speed - self._right_motor.speed) / 10)
+            self._compass.heading = abs(self._compass.heading % 360)
+            logger.debug('Speed: {}'.format(self.speed))
+            logger.debug('Heading: {}'.format(self._compass.heading))
+            logger.debug('Left Motor Speed: {}'.format(self._left_motor.speed))
+            logger.debug('Heading: {}'.format(self._right_motor.speed))
+
     def _distane_to_target(self):
         return distance_to_point(self._current_location, self._target_waypoint)
 
     def run(self):
-        print('Starting simulation')
+        logger.info('Starting simulation')
         self._running = True
         while self._running:
             self._update()

@@ -39,7 +39,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'channels',
     'solo',
     'auv_control_pi',
 ]
@@ -73,13 +72,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'auv_control_pi.wsgi.application'
-
-
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "asgi_redis.RedisChannelLayer",
-    },
-}
 
 
 # Database
