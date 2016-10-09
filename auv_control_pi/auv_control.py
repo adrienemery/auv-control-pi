@@ -5,6 +5,8 @@ from collections import deque
 from django.conf import settings
 
 # from navio import pwm
+from django.utils import timezone
+
 from .asgi import channel_layer, AUV_SEND_CHANNEL, auv_update_group
 from .navigation import Point
 from .models import Configuration
@@ -153,10 +155,7 @@ class Mothership:
         await self._read_commands()
 
     async def _update(self):
-        """
-        Read in data from serial buffer and broadcast on
-        the auv update channel.
-        """
+        """Broadcast current state on the auv update channel"""
         while True:
             payload = {
                 'lat': self._gps.lat,
@@ -166,6 +165,7 @@ class Mothership:
                 'left_motor_speed': self.left_motor.speed,
                 'right_motor_speed': self.right_motor.speed,
                 'mode': self.mode,
+                'timestamp': timezone.now()
             }
             # broadcast auv data to group
             auv_update_group.send(payload)

@@ -4,6 +4,7 @@ from solo.models import SingletonModel
 
 class Configuration(SingletonModel):
 
+    auv_id = models.UUIDField(blank=True, null=True)
     auth_token = models.CharField(max_length=1024, blank=True)
     update_frequency = models.DecimalField(blank=True, null=True,
                                            max_digits=5, decimal_places=3)
@@ -17,6 +18,3 @@ class Configuration(SingletonModel):
 
     class Meta:
         verbose_name = "AUV Configuration"
-
-
-

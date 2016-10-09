@@ -26,9 +26,7 @@ class RemoteInterface(ApplicationSession):
         self.auv_channel = Channel(AUV_SEND_CHANNEL, channel_layer=channel_layer)
 
     def _relay_cmd(self, msg):
-        """
-        Relay commands to Mothership using asgi channels
-        """
+        """Relay commands to Mothership over asgi channels"""
         assert isinstance(msg, dict)
         msg['sender'] = 'remote_control'
         self.auv_channel.send(msg)
@@ -45,6 +43,7 @@ class RemoteInterface(ApplicationSession):
         self.join(realm=self.config.realm, authmethods=['ticket'], authid='auv')
 
     def onChallenge(self, challenge):
+        """Handle authentication challenge"""
         if challenge.method == 'ticket':
             logger.info("WAMP-Ticket challenge received: {}".format(challenge))
             config = Configuration.get_solo()
@@ -53,9 +52,7 @@ class RemoteInterface(ApplicationSession):
             raise Exception("Invalid authmethod {}".format(challenge.method))
 
     async def onJoin(self, details):
-        """
-        Register functions for access via RPC
-        """
+        """Register functions for access via RPC and start update loops"""
         logger.info("Joined Crossbar Session")
         await self.register(self.move_right, 'com.auv.move_right')
         await self.register(self.move_left, 'com.auv.move_left')
@@ -64,10 +61,14 @@ class RemoteInterface(ApplicationSession):
         await self.register(self.stop, 'com.auv.stop')
         await self.register(self.move_to_waypoint, 'com.auv.move_to_waypoint')
         await self.register(self.start_trip, 'com.auv.start_trip')
+        await self.register(self.update_settings, 'com.auv.update_settings')
         # let everyone know that we have connected
-        await self.publish(self.start_trip, 'com.auv.connected')
-        await self.update()
-        # await self.heartbeat()
+        self.publish('com.auv.connected', 'some.id')
+
+        # create subtasks
+        loop = asyncio.get_event_loop()
+        asyncio.ensure_future(self.heartbeat(), loop=loop)
+        asyncio.ensure_future(self.update(), loop=loop)
 
     def move_right(self, speed=None):
         speed = self.DEFAULT_TURN_SPEED or speed
@@ -138,9 +139,7 @@ class RemoteInterface(ApplicationSession):
         self._relay_cmd(msg)
 
     async def update(self):
-        """
-        Broadcast updates at 1Hz
-        """
+        """Broadcast updates whenever recieved on update channel"""
         while True:
             await asyncio.sleep(0.1)
             channels = [self.auv_update_channel_name]
@@ -148,21 +147,19 @@ class RemoteInterface(ApplicationSession):
                 _, data = channel_layer.receive_many(channels)
                 if data:
                     logger.debug('Auv Update Data: {}'.format(data))
-                    # publish data to wamp
                     self.publish('com.auv.update', data)
                 else:
                     break
 
     async def heartbeat(self):
+        """Broadcast heartbeat at 1Hz"""
         while True:
-            await asyncio.sleep(2)
-            # publish data
+            await asyncio.sleep(1)
             self.publish('com.auv.heartbeat', 'ok')
             logger.debug('heartbeat')
 
 
 if __name__ == '__main__':
-
     import configparser
     crossbar_config = configparser.ConfigParser()
     crossbar_config.read('config.ini')
