@@ -127,30 +127,30 @@ class Mothership:
     async def _run_navigator(self):
         await curio.run_in_thread(self._navigator.run)
 
+    async def _read_commands(self):
+        # check for commands to send to auv
+        channels = [AUV_SEND_CHANNEL]
+        # read all messages off of channel
+        while True:
+            _, data = channel_layer.receive_many(channels)
+            if data:
+                logger.debug('Recieved data: {}'.format(data))
+                try:
+                    fnc = getattr(self, data.get('cmd'))
+                except AttributeError:
+                    pass
+                else:
+                    if fnc and callable(fnc):
+                        await fnc(**data.get('kwargs', {}))
+            else:
+                await curio.sleep(0.05)  # chill out for a bit
+
     async def run(self):
         logger.info('Starting Mothership')
         await curio.spawn(self._update())
         await curio.spawn(self._run_navigator())
-        logger.info('Entering main loop')
-        # main loop
-        while True:
-            # check for commands to send to auv
-            channels = [AUV_SEND_CHANNEL]
-            # read all messages off of channel
-            while True:
-                _, data = channel_layer.receive_many(channels)
-                if data:
-                    logger.debug('Recieved data: {}'.format(data))
-                    try:
-                        fnc = getattr(self, data.get('cmd'))
-                    except AttributeError:
-                        pass
-                    else:
-                        if fnc and callable(fnc):
-                            await fnc(**data.get('kwargs', {}))
-                else:
-                    break
-            await curio.sleep(0.05)  # chill out for a bit
+        logger.info('Running main loop')
+        await self._read_commands()
 
     async def _update(self):
         """

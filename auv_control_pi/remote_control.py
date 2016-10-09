@@ -1,7 +1,9 @@
 import asyncio
 import logging
 
-from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
+from autobahn.asyncio.wamp import ApplicationSession
+from autobahn_autoreconnect import ApplicationRunner
+
 from channels import Channel
 from .asgi import channel_layer, AUV_SEND_CHANNEL, auv_update_group
 from .models import Configuration
@@ -62,8 +64,10 @@ class RemoteInterface(ApplicationSession):
         await self.register(self.stop, 'com.auv.stop')
         await self.register(self.move_to_waypoint, 'com.auv.move_to_waypoint')
         await self.register(self.start_trip, 'com.auv.start_trip')
+        # let everyone know that we have connected
+        await self.publish(self.start_trip, 'com.auv.connected')
         await self.update()
-        await self.heartbeat()
+        # await self.heartbeat()
 
     def move_right(self, speed=None):
         speed = self.DEFAULT_TURN_SPEED or speed
@@ -114,13 +118,22 @@ class RemoteInterface(ApplicationSession):
     def start_trip(self, waypoints):
         msg = {
             'cmd': 'start_trip',
-            'kwargs': waypoints
+            'kwargs': {
+                'waypoints': waypoints
+            }
         }
         self._relay_cmd(msg)
 
-    def stop(self, ):
+    def stop(self):
         msg = {
             'cmd': 'stop',
+        }
+        self._relay_cmd(msg)
+
+    def update_settings(self, settings_dict):
+        msg = {
+            'cmd': 'update_settings',
+            'kwargs': settings_dict,
         }
         self._relay_cmd(msg)
 
@@ -149,6 +162,7 @@ class RemoteInterface(ApplicationSession):
 
 
 if __name__ == '__main__':
+
     import configparser
     crossbar_config = configparser.ConfigParser()
     crossbar_config.read('config.ini')

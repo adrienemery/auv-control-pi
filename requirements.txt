@@ -2,6 +2,7 @@ asgi-ipc==1.1.0
 asgi-redis==0.14.0
 asgiref==0.14.0
 autobahn==0.15.0
+git+https://github.com/isra17/autobahn-autoreconnect#egg=autobahn_autoreconnect
 channels>=0.17.2
 crossbar==0.15.0
 Django==1.10.1
