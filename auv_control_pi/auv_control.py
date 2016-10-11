@@ -13,7 +13,7 @@ from .models import Configuration
 
 
 if settings.SIMULATE:
-    from .simulator import GPS, Compass, Simulator, Motor
+    from .simulator import GPS, Compass, Navitgator, Motor
 else:
     from navio.gps import GPS
     from navio.compass import Compass  # TODO
@@ -31,6 +31,7 @@ class Mothership:
     MANUAL = 'manual'
     LOITER = 'loiter'
     TRIP = 'trip'
+    MOVE_TO_WAYPOINT = 'move_to_waypoint'
 
     def __init__(self):
         self.lat = 0.0
@@ -44,13 +45,12 @@ class Mothership:
         self.right_motor = Motor(config.right_motor_channel)
         self.mode = self.MANUAL
         self.waypoints = deque()
-
         self._gps = GPS()
         self._compass = Compass()
         if settings.SIMULATE:
-            self._navigator = Simulator(gps=self._gps, compass=self._compass,
-                                        right_motor=self.right_motor,
-                                        left_motor=self.left_motor)
+            self._navigator = Navitgator(gps=self._gps, compass=self._compass,
+                                         right_motor=self.right_motor,
+                                         left_motor=self.left_motor)
         else:
             self._navigator = Navigator()
 
@@ -115,7 +115,7 @@ class Mothership:
 
     async def move_to_waypoint(self, lat, lng, **kwargs):
         self._navigator.move_to_waypoint(Point(lat=lat, lng=lng))
-        self.mode = self.TRIP
+        self.mode = self.MOVE_TO_WAYPOINT
         logger.info('Moving to waypoint: ({}, {})'.format(lat, lng))
 
     async def start_trip(self, waypoints, **kwargs):
@@ -164,9 +164,19 @@ class Mothership:
                 'speed': self._navigator.speed,
                 'left_motor_speed': self.left_motor.speed,
                 'right_motor_speed': self.right_motor.speed,
+                'distance_to_target': self._navigator.distance_to_target,
                 'mode': self.mode,
-                'timestamp': timezone.now()
+                'arrived': self._navigator.arrived,
+                'timestamp': timezone.now().isoformat()
             }
+            if self._navigator.target_waypoint:
+                payload['target_waypoint'] = {
+                    'lat': self._navigator.target_waypoint.lat,
+                    'lng': self._navigator.target_waypoint.lng
+                }
+            else:
+                payload['target_waypoint'] = None
+
             # broadcast auv data to group
             auv_update_group.send(payload)
             logger.debug('Broadcast udpate')

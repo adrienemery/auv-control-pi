@@ -32,12 +32,12 @@ class Motor:
         return 'Motor({})'.format(self.name)
 
 
-class Simulator:
+class Navitgator:
 
     # target distance is the minimum distance we need to
     # arrive at in order to consider ourselves "arrived"
     # at the waypoint
-    TARGET_DISTANCE = 20  # meters
+    TARGET_DISTANCE = 60  # meters
 
     def __init__(self, gps, compass,
                  left_motor=None, right_motor=None,
@@ -47,7 +47,7 @@ class Simulator:
         self._left_motor = left_motor
         self._right_motor = right_motor
         self._running = False
-        self._target_waypoint = None
+        self.target_waypoint = None
         self._current_location = current_location or Point(lat=49.2827, lng=-123.1207)
 
         self.update_period = update_period
@@ -59,16 +59,17 @@ class Simulator:
         self._running = False
 
     def move_to_waypoint(self, waypoint):
-        self._target_waypoint = waypoint
+        self.arrived = False
+        self.target_waypoint = waypoint
         self._compass.heading = heading_to_point(self._current_location, waypoint)
-        self.speed = 10
+        self.speed = 50
 
     def start_trip(self, waypoints):
         self.waypoints = deque(waypoints)
         self.move_to_waypoint(self.waypoints.popleft())
 
     def stop_trip(self):
-        self._target_waypoint = None
+        self.target_waypoint = None
         self.waypoints = deque()
 
     def _update(self):
@@ -83,31 +84,34 @@ class Simulator:
         self._gps.lat = self._current_location.lat
         self._gps.lng = self._current_location.lng
 
-        if self._target_waypoint:
+        if self.target_waypoint and not self.arrived:
             # update compass heading if we have a target waypoint
             self._compass.heading = heading_to_point(self._current_location,
-                                                     self._target_waypoint)
+                                                     self.target_waypoint)
             # check if we have hit our target
-            if self._distane_to_target() <= self.TARGET_DISTANCE:
+            if self.distance_to_target <= self.TARGET_DISTANCE:
                 try:
                     # if there are waypoints qued up keep going
                     self.move_to_waypoint(self.waypoints.popleft())
                 except IndexError:
                     # otherwise we have arrived
                     self.arrived = True
+                    self.speed = 0
+                    logger.info('Arrived at Waypoint({}, {})'.format(self.target_waypoint.lat,
+                                                                     self.target_waypoint.lng))
 
         else:
             # update heading and speed based on motor speeds
             self.speed = (self._left_motor.speed + self._right_motor.speed) // 2
             self._compass.heading += ((self._left_motor.speed - self._right_motor.speed) / 10)
             self._compass.heading = abs(self._compass.heading % 360)
-            logger.debug('Speed: {}'.format(self.speed))
-            logger.debug('Heading: {}'.format(self._compass.heading))
-            logger.debug('Left Motor Speed: {}'.format(self._left_motor.speed))
-            logger.debug('Heading: {}'.format(self._right_motor.speed))
 
-    def _distane_to_target(self):
-        return distance_to_point(self._current_location, self._target_waypoint)
+    @property
+    def distance_to_target(self):
+        if self.target_waypoint:
+            return distance_to_point(self._current_location, self.target_waypoint)
+        else:
+            return None
 
     def run(self):
         logger.info('Starting simulation')

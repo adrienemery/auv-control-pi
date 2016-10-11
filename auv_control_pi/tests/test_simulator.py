@@ -2,16 +2,16 @@ import pytest
 
 from pygc import great_circle
 
-from ..simulator import Simulator, GPS, Motor, Compass
+from ..simulator import Navitgator, GPS, Motor, Compass
 from ..utils import Point, distance_to_point
 
 
 @pytest.fixture
 def sim():
     starting_point = Point(50, 120)
-    return Simulator(gps=GPS(), compass=Compass(),
-                     current_location=starting_point,
-                     update_period=1)
+    return Navitgator(gps=GPS(), compass=Compass(),
+                      current_location=starting_point,
+                      update_period=1)
 
 
 def test_simulator_move_to_waypoint(sim):
