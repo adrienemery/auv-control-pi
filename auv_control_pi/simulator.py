@@ -64,13 +64,15 @@ class Navitgator:
         self._compass.heading = heading_to_point(self._current_location, waypoint)
         self.speed = 50
 
-    def start_trip(self, waypoints):
-        self.waypoints = deque(waypoints)
+    def start_trip(self, waypoints=None):
+        if waypoints:
+            self.waypoints = deque(waypoints)
         self.move_to_waypoint(self.waypoints.popleft())
 
-    def stop_trip(self):
+    def pause_trip(self):
+        # push the current waypoint back on the stack
+        self.waypoints.appendleft(self.target_waypoint)
         self.target_waypoint = None
-        self.waypoints = deque()
 
     def _update(self):
         """Update the current position and heading"""

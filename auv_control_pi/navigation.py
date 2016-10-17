@@ -31,3 +31,10 @@ class Navigator:
 
     def move_to_waypoint(self, point):
         pass
+
+
+class Trip:
+
+    def __init__(self, pk, waypoints):
+        self.pk = pk
+        self.waypoints = [Point(lat=w['lat'], lng=w['lng']) for w in waypoints]

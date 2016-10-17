@@ -8,7 +8,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from .asgi import channel_layer, AUV_SEND_CHANNEL, auv_update_group
-from .navigation import Point
+from .navigation import Point, Trip
 from .models import Configuration
 
 
@@ -45,8 +45,10 @@ class Mothership:
         self.right_motor = Motor(config.right_motor_channel)
         self.mode = self.MANUAL
         self.waypoints = deque()
+        self.update_frequency = 1
         self._gps = GPS()
         self._compass = Compass()
+        self.trip = None
         if settings.SIMULATE:
             self._navigator = Navitgator(gps=self._gps, compass=self._compass,
                                          right_motor=self.right_motor,
@@ -54,80 +56,65 @@ class Mothership:
         else:
             self._navigator = Navigator()
 
-    async def _move_right(self, speed=None):
+    async def move_right(self, speed=None):
+        logger.info('Move right with speed {}'.format(speed))
         if speed is None:
             speed = 50
         self.left_motor.speed = abs(speed)
         self.right_motor.speed = -abs(speed)
-        logger.debug('Left Motor Speed: {}'.format(self.left_motor.speed))
-        logger.debug('Right Motor Speed: {}'.format(self.right_motor.speed))
 
-    async def _move_left(self, speed=None):
+    async def move_left(self, speed=None):
+        logger.info('Move left with speed {}'.format(speed))
         if speed is None:
             speed = 50
         self.left_motor.speed = -abs(speed)
         self.right_motor.speed = abs(speed)
-        logger.debug('Left Motor Speed: {}'.format(self.left_motor.speed))
-        logger.debug('Right Motor Speed: {}'.format(self.right_motor.speed))
 
-    async def _stop(self):
-        self._navigator.stop_trip()
+    async def move_forward(self, speed=None):
+        logger.info('Move forward with speed {}'.format(speed))
+        if speed is not None:
+            speed = 50
+        self.left_motor.speed = abs(speed)
+        self.right_motor.speed = abs(speed)
+
+    async def move_reverse(self, speed=None):
+        logger.info('Move reverse with speed {}'.format(speed))
+        if speed is not None:
+            speed = 50
+        self.left_motor.speed = -abs(speed)
+        self.right_motor.speed = -abs(speed)
+
+    async def stop(self):
+        logger.info('Stopping')
+        self._navigator.pause_trip()
         self.left_motor.speed = 0
         self.right_motor.speed = 0
-        logger.debug('Left Motor Speed: {}'.format(self.left_motor.speed))
-        logger.debug('Right Motor Speed: {}'.format(self.right_motor.speed))
 
-    async def _move_forward(self, speed=None):
-        if speed is not None:
-            speed = 50
-        self.left_motor.speed = abs(speed)
-        self.right_motor.speed = abs(speed)
-        logger.debug('Left Motor Speed: {}'.format(self.left_motor.speed))
-        logger.debug('Right Motor Speed: {}'.format(self.right_motor.speed))
-
-    async def _move_reverse(self, speed=None):
-        if speed is not None:
-            speed = 50
-        self.left_motor.speed = -abs(speed)
-        self.right_motor.speed = -abs(speed)
-        logger.debug('Left Motor Speed: {}'.format(self.left_motor.speed))
-        logger.debug('Right Motor Speed: {}'.format(self.right_motor.speed))
-
-    async def move_right(self, speed=None, **kwargs):
-        await self._move_right(speed)
-        logger.info('Move right with speed {}'.format(speed))
-
-    async def move_left(self, speed=None, **kwargs):
-        await self._move_left(speed)
-        logger.info('Move left with speed {}'.format(speed))
-
-    async def move_forward(self, speed=None, **kwargs):
-        await self._move_forward(speed)
-        logger.info('Move forward with speed {}'.format(speed))
-
-    async def move_reverse(self, speed=None, **kwargs):
-        await self._move_reverse(speed)
-        logger.info('Move reverse with speed {}'.format(speed))
-
-    async def stop(self, **kwargs):
-        await self._stop()
-        logger.info('Stopping')
-
-    async def move_to_waypoint(self, lat, lng, **kwargs):
+    async def move_to_waypoint(self, lat, lng):
         self._navigator.move_to_waypoint(Point(lat=lat, lng=lng))
         self.mode = self.MOVE_TO_WAYPOINT
         logger.info('Moving to waypoint: ({}, {})'.format(lat, lng))
 
-    async def start_trip(self, waypoints, **kwargs):
-        self._navigator.start_trip(waypoints)
-        self.mode = self.TRIP
-        logger.info('Starting trip')
+    async def start_trip(self):
+        if self.trip:
+            self._navigator.start_trip(self.trip.waypoints)
+            self.mode = self.TRIP
+            logger.info('Starting trip with id: {}'.format(self.trip.pk))
+        logger.warning('No trip set to start')
 
-    async def send(self, msg):
-        self.command_buffer.append(msg)
+    async def set_trip(self, trip):
+        self.trip = Trip(pk=trip['id'], waypoints=trip['waypoints'])
+        logger.info('Trip set with id: {}'.format(trip['id']))
 
-    async def _run_navigator(self):
-        await curio.run_in_thread(self._navigator.run)
+    async def update_settings(self, **new_settings):
+        if new_settings.get('mode') == self.MOVE_TO_WAYPOINT:
+            target_lat = new_settings.get('target_lat')
+            target_lng = new_settings.get('target_lng')
+            if target_lat and target_lng:
+                await self.move_to_waypoint(target_lat, target_lng)
+        for attr, val in new_settings.items():
+            if hasattr(self, attr):
+                setattr(self, attr, val)
 
     async def _read_commands(self):
         # check for commands to send to auv
@@ -143,16 +130,18 @@ class Mothership:
                     pass
                 else:
                     if fnc and callable(fnc):
-                        await fnc(**data.get('kwargs', {}))
+                        try:
+                            await fnc(**data.get('kwargs', {}))
+                        except Exception as exc:
+                            logger.error()
             else:
                 await curio.sleep(0.05)  # chill out for a bit
 
     async def run(self):
         logger.info('Starting Mothership')
         await curio.spawn(self._update())
-        await curio.spawn(self._run_navigator())
-        logger.info('Running main loop')
-        await self._read_commands()
+        await curio.spawn(self._read_commands())
+        await curio.run_in_thread(self._navigator.run)
 
     async def _update(self):
         """Broadcast current state on the auv update channel"""
@@ -180,7 +169,7 @@ class Mothership:
             # broadcast auv data to group
             auv_update_group.send(payload)
             logger.debug('Broadcast udpate')
-            await curio.sleep(1)
+            await curio.sleep(1 / self.update_frequency)
 
 
 mothership = Mothership()

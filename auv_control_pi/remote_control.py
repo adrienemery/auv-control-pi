@@ -9,6 +9,7 @@ from .asgi import channel_layer, AUV_SEND_CHANNEL, auv_update_group
 from .models import Configuration
 
 logger = logging.getLogger(__name__)
+AUV_ID = 'f00a7a7b-44cd-4a5f-b424-a15037ccece8'
 
 
 class RemoteInterface(ApplicationSession):
@@ -54,6 +55,7 @@ class RemoteInterface(ApplicationSession):
     async def onJoin(self, details):
         """Register functions for access via RPC and start update loops"""
         logger.info("Joined Crossbar Session")
+
         await self.register(self.move_right, 'com.auv.move_right')
         await self.register(self.move_left, 'com.auv.move_left')
         await self.register(self.move_forward, 'com.auv.move_forward')
@@ -61,14 +63,40 @@ class RemoteInterface(ApplicationSession):
         await self.register(self.stop, 'com.auv.stop')
         await self.register(self.move_to_waypoint, 'com.auv.move_to_waypoint')
         await self.register(self.start_trip, 'com.auv.start_trip')
+        await self.register(self.set_trip, 'com.auv.set_trip')
         await self.register(self.update_settings, 'com.auv.update_settings')
-        # let everyone know that we have connected
-        self.publish('com.auv.connected', 'some.id')
 
         # create subtasks
         loop = asyncio.get_event_loop()
+        asyncio.ensure_future(self._connected(), loop=loop)
         asyncio.ensure_future(self.heartbeat(), loop=loop)
         asyncio.ensure_future(self.update(), loop=loop)
+
+    async def _connected(self):
+        """Let everyone know that we have connected"""
+        # TODO get this ide from the database
+        self.publish('com.auv.connected', AUV_ID)
+
+    async def update(self):
+        """Broadcast updates whenever recieved on update channel"""
+        while True:
+            await asyncio.sleep(0.1)
+            channels = [self.auv_update_channel_name]
+            while True:
+                _, data = channel_layer.receive_many(channels)
+                if data:
+                    data['auv_id'] = AUV_ID
+                    logger.debug('Auv Update Data: {}'.format(data))
+                    self.publish('com.auv.update', data)
+                else:
+                    break
+
+    async def heartbeat(self):
+        """Broadcast heartbeat at 1Hz"""
+        while True:
+            await asyncio.sleep(1)
+            self.publish('com.auv.heartbeat', 'ok')
+            logger.debug('heartbeat')
 
     def move_right(self, speed=None):
         speed = self.DEFAULT_TURN_SPEED or speed
@@ -116,11 +144,17 @@ class RemoteInterface(ApplicationSession):
         }
         self._relay_cmd(msg)
 
-    def start_trip(self, waypoints):
+    def start_trip(self, data):
         msg = {
             'cmd': 'start_trip',
+        }
+        self._relay_cmd(msg)
+
+    def set_trip(self, trip):
+        msg = {
+            'cmd': 'set_trip',
             'kwargs': {
-                'waypoints': waypoints
+                'trip': trip
             }
         }
         self._relay_cmd(msg)
@@ -137,26 +171,6 @@ class RemoteInterface(ApplicationSession):
             'kwargs': settings_dict,
         }
         self._relay_cmd(msg)
-
-    async def update(self):
-        """Broadcast updates whenever recieved on update channel"""
-        while True:
-            await asyncio.sleep(0.1)
-            channels = [self.auv_update_channel_name]
-            while True:
-                _, data = channel_layer.receive_many(channels)
-                if data:
-                    logger.debug('Auv Update Data: {}'.format(data))
-                    self.publish('com.auv.update', data)
-                else:
-                    break
-
-    async def heartbeat(self):
-        """Broadcast heartbeat at 1Hz"""
-        while True:
-            await asyncio.sleep(1)
-            self.publish('com.auv.heartbeat', 'ok')
-            logger.debug('heartbeat')
 
 
 if __name__ == '__main__':
