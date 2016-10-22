@@ -13,4 +13,4 @@ PyNaCl==1.0.1
 pyOpenSSL==16.0.0
 redis==2.10.5
 requests==2.11.0
-
+spidev==3.2

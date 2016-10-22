@@ -171,13 +171,3 @@ class RemoteInterface(ApplicationSession):
             'kwargs': settings_dict,
         }
         self._relay_cmd(msg)
-
-
-if __name__ == '__main__':
-    import configparser
-    crossbar_config = configparser.ConfigParser()
-    crossbar_config.read('config.ini')
-    url = crossbar_config['crossbar']['url']
-    realm = crossbar_config['crossbar']['realm']
-    runner = ApplicationRunner(url=url, realm=realm)
-    runner.run(RemoteInterface)

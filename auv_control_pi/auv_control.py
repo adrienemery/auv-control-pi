@@ -173,6 +173,3 @@ class Mothership:
 
 
 mothership = Mothership()
-
-if __name__ == '__main__':
-    curio.run(mothership.run())
