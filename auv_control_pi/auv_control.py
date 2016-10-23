@@ -7,7 +7,7 @@ from django.conf import settings
 # from navio import pwm
 from django.utils import timezone
 
-from .asgi import channel_layer, AUV_SEND_CHANNEL, auv_update_group
+from .asgi import channel_layer, AUV_SEND_CHANNEL
 from .navigation import Point, Trip
 from .models import Configuration
 
@@ -170,7 +170,7 @@ class Mothership:
                 payload['target_waypoint'] = None
 
             # broadcast auv data to group
-            auv_update_group.send(payload)
+            channel_layer.send('auv.update', payload)
             logger.debug('Broadcast udpate')
             await curio.sleep(1 / self.update_frequency)
 

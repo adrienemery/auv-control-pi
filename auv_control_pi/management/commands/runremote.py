@@ -1,9 +1,9 @@
 import logging
 
 from django.core.management.base import BaseCommand
-from auv_control_pi.remote_control import RemoteInterface, ApplicationRunner
+from auv_control_pi.remote_control import RemoteInterface
 from auv_control_pi.config import config
-from autobahn_autoreconnect import BackoffStrategy
+from autobahn_autoreconnect import BackoffStrategy, ApplicationRunner
 
 logging.basicConfig(level=logging.INFO)
 

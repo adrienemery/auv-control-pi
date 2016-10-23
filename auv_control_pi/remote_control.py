@@ -2,12 +2,9 @@ import asyncio
 import logging
 
 from autobahn.asyncio.wamp import ApplicationSession
-from autobahn_autoreconnect import ApplicationRunner
 
-from channels import Channel
-from .asgi import channel_layer, AUV_SEND_CHANNEL, auv_update_group
+from .asgi import channel_layer, AUV_SEND_CHANNEL
 from .models import Configuration
-
 
 logger = logging.getLogger(__name__)
 
@@ -21,16 +18,13 @@ class RemoteInterface(ApplicationSession):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # generate a unique channel name for ourselves
-        self.auv_update_channel_name = channel_layer.new_channel('remote_control?')
         # subscribe to the auv update channel
-        auv_update_group.add(self.auv_update_channel_name)
-        self.auv_channel = Channel(AUV_SEND_CHANNEL, channel_layer=channel_layer)
 
     def _relay_cmd(self, msg):
         """Relay commands to Mothership over asgi channels"""
         assert isinstance(msg, dict)
         msg['sender'] = 'remote_control'
-        self.auv_channel.send(msg)
+        channel_layer.send(AUV_SEND_CHANNEL, msg)
         logger.info('sending cmd: {}'.format(msg))
 
     @staticmethod
@@ -81,7 +75,7 @@ class RemoteInterface(ApplicationSession):
         """Broadcast updates whenever recieved on update channel"""
         while True:
             await asyncio.sleep(0.1)
-            channels = [self.auv_update_channel_name]
+            channels = ['auv.update']
             while True:
                 _, data = channel_layer.receive_many(channels)
                 if data:
