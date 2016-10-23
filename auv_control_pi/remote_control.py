@@ -8,8 +8,8 @@ from channels import Channel
 from .asgi import channel_layer, AUV_SEND_CHANNEL, auv_update_group
 from .models import Configuration
 
+
 logger = logging.getLogger(__name__)
-AUV_ID = 'f00a7a7b-44cd-4a5f-b424-a15037ccece8'
 
 
 class RemoteInterface(ApplicationSession):
@@ -74,8 +74,8 @@ class RemoteInterface(ApplicationSession):
 
     async def _connected(self):
         """Let everyone know that we have connected"""
-        # TODO get this ide from the database
-        self.publish('com.auv.connected', AUV_ID)
+        config = Configuration.get_solo()
+        self.publish('com.auv.connected', str(config.auv_id))
 
     async def update(self):
         """Broadcast updates whenever recieved on update channel"""
@@ -85,7 +85,8 @@ class RemoteInterface(ApplicationSession):
             while True:
                 _, data = channel_layer.receive_many(channels)
                 if data:
-                    data['auv_id'] = AUV_ID
+                    config = Configuration.get_solo()
+                    data['auv_id'] = str(config.auv_id)
                     logger.debug('Auv Update Data: {}'.format(data))
                     self.publish('com.auv.update', data)
                 else:

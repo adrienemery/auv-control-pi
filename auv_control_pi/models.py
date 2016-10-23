@@ -12,6 +12,8 @@ class Configuration(SingletonModel):
     right_motor_channel = models.IntegerField(default=1)
     name = models.CharField(max_length=255, blank=True)
     address = models.CharField(max_length=255, blank=True)
+    crossbar_url = models.CharField(max_length=255, default='ws://localhost:8080/ws')
+    crossbar_realm = models.CharField(max_length=255, default='realm1')
 
     def __str__(self):
         return 'AUV Configuration'

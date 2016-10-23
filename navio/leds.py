@@ -1,41 +1,49 @@
-ON = 0
-OFF = 1
+ON = True
+OFF = False
 
-class Pin():
+
+class Pin:
+
     def __init__(self, folder_name):
         self.pin = folder_name
         try:
             open("/sys/class/leds/%s/brightness" % self.pin, "w")
-        except:
-            print "Can't open file 'brightness'"
-    
+        except OSError:
+            print("Can't open file 'brightness'")
+
     def write(self, value):
         with open("/sys/class/leds/%s/brightness" % self.pin, "w") as value_file:
             value_file.write(str(value))
 
-class Led():
+
+class Led:
+
+    BLACK = (OFF, OFF, OFF)
+    RED = (ON, OFF, OFF)
+    GREEN = (OFF, ON, OFF)
+    BLUE = (OFF, OFF, ON)
+    CYAN = (OFF, ON, ON),
+    MAGENTA = (ON, OFF, ON)
+    YELLOW = (ON, ON, OFF)
+    WHITE = (ON, ON, ON)
 
     def __init__(self):
-        self.ledR = Pin("rgb_led0")
-        self.ledB = Pin("rgb_led1")
-        self.ledG = Pin("rgb_led2")
+        self.led_red = Pin("rgb_led0")
+        self.led_blue = Pin("rgb_led1")
+        self.led_green = Pin("rgb_led2")
+        self._color = self.BLACK
 
-        self.ledR.write(OFF) 
-        self.ledG.write(OFF) 
-        self.ledB.write(OFF) 
-    
-    def setColor(self, color):
-        self.ledR.write(self.gamma[color][0]) 
-        self.ledG.write(self.gamma[color][1]) 
-        self.ledB.write(self.gamma[color][2])
-    
-    gamma = {
-        'Black':    (OFF, OFF, OFF),
-        'Red':      (ON, OFF, OFF),
-        'Green':    (OFF, ON, OFF),
-        'Blue':     (OFF, OFF, ON),
-        'Cyan':     (OFF, ON, ON),
-        'Magneta':  (ON, OFF, ON),
-        'Yellow':   (ON,ON,OFF),
-        'White':    (ON, ON, ON)
-    }
+        self.led_red.write(OFF)
+        self.led_blue.write(OFF)
+        self.led_green.write(OFF)
+
+    @property
+    def color(self):
+        return self._color
+
+    @color.setter
+    def color(self, color):
+        self._color = color
+        self.led_red.write(color[0])
+        self.led_blue.write(color[1])
+        self.led_green.write(color[2])

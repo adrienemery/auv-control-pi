@@ -7,6 +7,7 @@ channels>=0.17.2
 crossbar==0.15.0
 Django==1.10.1
 envitro==0.4.2
+honcho==0.7.1
 ipython>=5.0.0
 pygc==1.0.0
 PyNaCl==1.0.1

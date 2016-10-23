@@ -103,8 +103,11 @@ class Mothership:
         logger.warning('No trip set to start')
 
     async def set_trip(self, trip):
-        self.trip = Trip(pk=trip['id'], waypoints=trip['waypoints'])
-        logger.info('Trip set with id: {}'.format(trip['id']))
+        if trip is not None:
+            self.trip = Trip(pk=trip['id'], waypoints=trip['waypoints'])
+            logger.info('Trip set with id: {}'.format(trip['id']))
+        else:
+            self.trip = trip
 
     async def update_settings(self, **new_settings):
         if new_settings.get('mode') == self.MOVE_TO_WAYPOINT:

@@ -1,10 +1,9 @@
-import configparser
 import logging
 
 from django.core.management.base import BaseCommand
 from auv_control_pi.remote_control import RemoteInterface, ApplicationRunner
+from auv_control_pi.config import config
 from autobahn_autoreconnect import BackoffStrategy
-
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,11 +26,7 @@ class RetryForever(BackoffStrategy):
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-
-        crossbar_config = configparser.ConfigParser()
-        crossbar_config.read('config.ini')
-        url = crossbar_config['crossbar']['url']
-        realm = crossbar_config['crossbar']['realm']
         retry_strategy = RetryForever(max_interval=60)
-        runner = ApplicationRunner(url=url, realm=realm, retry_strategy=retry_strategy)
+        runner = ApplicationRunner(url=config.crossbar_url, realm=config.crossbar_realm,
+                                   retry_strategy=retry_strategy)
         runner.run(RemoteInterface)
