@@ -1,4 +1,4 @@
-from ..utils import Point, heading_to_point, distance_to_point
+from ..navigation import Point, heading_to_point, distance_to_point
 
 
 def test_point():

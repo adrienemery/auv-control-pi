@@ -1,16 +1,17 @@
-class PWM():
+class PWM:
 
-    def __init__(self, channel):
+    def __init__(self, channel, test=False):
         self.channel = channel
-        try:
-            with open("/sys/class/pwm/pwmchip0/export", "a") as pwm_export:
-                pwm_export.write(str(self.channel))
-        except IOError:
-            #already exported. nothing to 
-            pass
-        
-        with open("/sys/class/pwm/pwmchip0/pwm%d/enable" % self.channel, "w") as pwm_enable:
-            pwm_enable.write("1")
+        if not test:
+            try:
+                with open("/sys/class/pwm/pwmchip0/export", "a") as pwm_export:
+                    pwm_export.write(str(self.channel))
+            except IOError:
+                # already exported. nothing to do
+                pass
+
+            with open("/sys/class/pwm/pwmchip0/pwm%d/enable" % self.channel, "w") as pwm_enable:
+                pwm_enable.write("1")
 
     def set_period(self, freq):
         period_ns = int(1e9/freq)

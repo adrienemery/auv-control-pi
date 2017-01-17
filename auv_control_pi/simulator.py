@@ -37,7 +37,7 @@ class Navitgator:
     # target distance is the minimum distance we need to
     # arrive at in order to consider ourselves "arrived"
     # at the waypoint
-    TARGET_DISTANCE = 60  # meters
+    TARGET_DISTANCE = 20  # meters
 
     def __init__(self, gps, compass,
                  left_motor=None, right_motor=None,
