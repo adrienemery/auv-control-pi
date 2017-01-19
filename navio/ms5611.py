@@ -30,6 +30,7 @@ import time
 
 from smbus import SMBus
 
+
 class MS5611:
 
 	__MS5611_ADDRESS_CSB_LOW  = 0x76

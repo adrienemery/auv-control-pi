@@ -1,9 +1,12 @@
 import logging
+import time
 
 from collections import deque, namedtuple
-
-import time
 from pygc import great_distance, great_circle
+from navio.mpu9250 import MPU9250
+
+from .ahrs import AHRS
+
 
 logger = logging.getLogger(__name__)
 Point = namedtuple('Point', ['lat', 'lng'])
@@ -29,6 +32,28 @@ def distance_to_point(point_a, point_b):
     return float(result['distance'])
 
 
+class Compass:
+
+    def __init__(self):
+        self.imu = MPU9250()
+        self.ahrs = AHRS()
+        self._connected = False
+        if self.imu.testConnection():
+            logger.info("Connection established: True")
+            self.imu.initialize()
+            self._connected = True
+        else:
+            logger.error('Could not connect to IMU')
+
+    @property
+    def heading(self):
+        if not self._connected:
+            return None
+
+        accel, gyro, mag = self.imu.getMotion9()
+        self.ahrs.update(accel, gyro, mag)
+
+
 class Navitgator:
 
     # target distance is the minimum distance we need to
@@ -39,16 +64,16 @@ class Navitgator:
     def __init__(self, gps, compass,
                  left_motor=None, right_motor=None,
                  update_period=1, current_location=None):
-        self._gps = gps
-        self._compass = compass
-        self._left_motor = left_motor
-        self._right_motor = right_motor
         self._running = False
+        self.gps = gps
+        self.compass = compass
+        self.left_motor = left_motor
+        self.right_motor = right_motor
         self.target_waypoint = None
-        self._current_location = current_location or Point(lat=49.2827, lng=-123.1207)
+        self.target_heading = None
+        self.current_location = current_location or Point(lat=49.2827, lng=-123.1207)
 
         self.update_period = update_period
-        self.speed = 0  # [m/s]
         self.arrived = False
         self.waypoints = deque()
 
@@ -58,8 +83,7 @@ class Navitgator:
     def move_to_waypoint(self, waypoint):
         self.arrived = False
         self.target_waypoint = waypoint
-        self._compass.heading = heading_to_point(self._current_location, waypoint)
-        self.speed = 50
+        self.target_heading = heading_to_point(self.current_location, waypoint)
 
     def start_trip(self, waypoints=None):
         if waypoints:
@@ -71,22 +95,16 @@ class Navitgator:
         self.waypoints.appendleft(self.target_waypoint)
         self.target_waypoint = None
 
-    def _update(self):
-        """Update the current position and heading"""
-        # update current position based on speed
-        distance = self.speed * self.update_period
-        result = great_circle(distance=distance,
-                              azimuth=self._compass.heading,
-                              latitude=self._current_location.lat,
-                              longitude=self._current_location.lng)
-        self._current_location = Point(result['latitude'], result['longitude'])
-        self._gps.lat = self._current_location.lat
-        self._gps.lng = self._current_location.lng
+    def update(self):
+        """Update the current position and heading
+        """
+        # update current location
+        # self.current_location = self.gps
 
         if self.target_waypoint and not self.arrived:
             # update compass heading if we have a target waypoint
-            self._compass.heading = heading_to_point(self._current_location,
-                                                     self.target_waypoint)
+            self.compass.heading = heading_to_point(self.current_location,
+                                                    self.target_waypoint)
             # check if we have hit our target
             if self.distance_to_target <= self.TARGET_DISTANCE:
                 try:
@@ -95,20 +113,13 @@ class Navitgator:
                 except IndexError:
                     # otherwise we have arrived
                     self.arrived = True
-                    self.speed = 0
                     logger.info('Arrived at Waypoint({}, {})'.format(self.target_waypoint.lat,
                                                                      self.target_waypoint.lng))
-
-        else:
-            # update heading and speed based on motor speeds
-            self.speed = (self._left_motor.speed + self._right_motor.speed) // 2
-            self._compass.heading += ((self._left_motor.speed - self._right_motor.speed) / 10)
-            self._compass.heading = abs(self._compass.heading % 360)
 
     @property
     def distance_to_target(self):
         if self.target_waypoint:
-            return distance_to_point(self._current_location, self.target_waypoint)
+            return distance_to_point(self.current_location, self.target_waypoint)
         else:
             return None
 
@@ -116,7 +127,7 @@ class Navitgator:
         logger.info('Starting simulation')
         self._running = True
         while self._running:
-            self._update()
+            self.update()
             time.sleep(self.update_period)
 
 
