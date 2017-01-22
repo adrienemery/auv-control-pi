@@ -1,5 +1,5 @@
-ON = True
-OFF = False
+ON = 0
+OFF = 1
 
 
 class Pin:

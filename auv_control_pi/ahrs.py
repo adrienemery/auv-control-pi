@@ -21,7 +21,12 @@ the CPU in a threaded environment. It sets magbias to the mean values of x,y,z
 """
 
 import time
+import logging
+
 from math import sqrt, atan2, asin, degrees, radians
+from navio.mpu9250 import MPU9250
+
+logger = logging.getLogger(__name__)
 
 
 def elapsed_micros(start_time_us):
@@ -42,6 +47,14 @@ class AHRS(object):
     declination = 0                         # Optional offset for true north. A +ve value adds to heading
 
     def __init__(self):
+        self.imu = MPU9250()
+        if self.imu.testConnection():
+            logger.info("Connection established: True")
+            self.imu.initialize()
+            self._connected = True
+        else:
+            logger.error('Could not connect to IMU')
+
         self.magbias = (0, 0, 0)            # local magnetic bias factors: set from calibration
         self.start_time = None              # Time between updates
         self.q = [1.0, 0.0, 0.0, 0.0]       # vector to hold quaternion
@@ -131,13 +144,14 @@ class AHRS(object):
         norm = 1 / sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)    # normalise quaternion
         self.q = q1 * norm, q2 * norm, q3 * norm, q4 * norm
 
-    def update(self, accel, gyro, mag):
+    def update(self):
         """Must call to get updated data
 
         3-tuples (x, y, z) for accel, gyro and mag data
 
         This should be called at a frequency between 10-50 Hz
         """
+        accel, gyro, mag = self.imu.getMotion9()
         mx, my, mz = (mag[x] - self.magbias[x] for x in range(3))  # Units irrelevant (normalised)
         ax, ay, az = accel  # Units irrelevant (normalised)
         gx, gy, gz = (radians(x) for x in gyro)  # Units deg/s
@@ -232,3 +246,13 @@ class AHRS(object):
         q4 += qDot4 * deltat
         norm = 1 / sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)    # normalise quaternion
         self.q = q1 * norm, q2 * norm, q3 * norm, q4 * norm
+
+
+if __name__ == '__main__':
+    ahrs = AHRS()
+    while True:
+        ahrs.update()
+        time.sleep(0.1)
+        print('roll: {:.2f}, pitch: {:.2f}, heading: {:.2f}'.format(ahrs.roll,
+                                                                    ahrs.pitch,
+                                                                    ahrs.heading))

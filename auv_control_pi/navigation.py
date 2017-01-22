@@ -3,7 +3,6 @@ import time
 
 from collections import deque, namedtuple
 from pygc import great_distance, great_circle
-from navio.mpu9250 import MPU9250
 
 from .ahrs import AHRS
 
@@ -35,23 +34,11 @@ def distance_to_point(point_a, point_b):
 class Compass:
 
     def __init__(self):
-        self.imu = MPU9250()
         self.ahrs = AHRS()
-        self._connected = False
-        if self.imu.testConnection():
-            logger.info("Connection established: True")
-            self.imu.initialize()
-            self._connected = True
-        else:
-            logger.error('Could not connect to IMU')
 
     @property
     def heading(self):
-        if not self._connected:
-            return None
-
-        accel, gyro, mag = self.imu.getMotion9()
-        self.ahrs.update(accel, gyro, mag)
+        return self.ahrs.heading
 
 
 class Navitgator:
@@ -98,6 +85,7 @@ class Navitgator:
     def update(self):
         """Update the current position and heading
         """
+        # TODO impliment controls using real io to sensors/motors
         # update current location
         # self.current_location = self.gps
 
