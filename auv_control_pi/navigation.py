@@ -4,6 +4,7 @@ import time
 from collections import deque, namedtuple
 from pygc import great_distance, great_circle
 
+from navio.mpu9250 import MPU9250
 from .ahrs import AHRS
 
 
@@ -31,16 +32,6 @@ def distance_to_point(point_a, point_b):
     return float(result['distance'])
 
 
-class Compass:
-
-    def __init__(self):
-        self.ahrs = AHRS()
-
-    @property
-    def heading(self):
-        return self.ahrs.heading
-
-
 class Navitgator:
 
     # target distance is the minimum distance we need to
@@ -48,12 +39,12 @@ class Navitgator:
     # at the waypoint
     TARGET_DISTANCE = 60  # meters
 
-    def __init__(self, gps, compass,
-                 left_motor=None, right_motor=None,
+    def __init__(self, left_motor=None, right_motor=None,
                  update_period=1, current_location=None):
         self._running = False
-        self.gps = gps
-        self.compass = compass
+        self.imu = MPU9250()
+        self.imu.initialize()
+        self.ahrs = AHRS()
         self.left_motor = left_motor
         self.right_motor = right_motor
         self.target_waypoint = None
@@ -85,14 +76,14 @@ class Navitgator:
     def update(self):
         """Update the current position and heading
         """
+        accel, gyro, mag = self.imu.getMotion9()
+        self.ahrs.update(accel, gyro, mag)
+
         # TODO impliment controls using real io to sensors/motors
         # update current location
         # self.current_location = self.gps
 
         if self.target_waypoint and not self.arrived:
-            # update compass heading if we have a target waypoint
-            self.compass.heading = heading_to_point(self.current_location,
-                                                    self.target_waypoint)
             # check if we have hit our target
             if self.distance_to_target <= self.TARGET_DISTANCE:
                 try:

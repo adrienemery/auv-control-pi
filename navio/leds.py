@@ -20,8 +20,8 @@ class Led:
 
     BLACK = (OFF, OFF, OFF)
     RED = (ON, OFF, OFF)
-    GREEN = (OFF, ON, OFF)
-    BLUE = (OFF, OFF, ON)
+    BLUE = (OFF, ON, OFF)
+    GREEN = (OFF, OFF, ON)
     CYAN = (OFF, ON, ON),
     MAGENTA = (ON, OFF, ON)
     YELLOW = (ON, ON, OFF)
