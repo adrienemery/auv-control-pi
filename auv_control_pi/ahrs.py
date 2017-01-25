@@ -24,17 +24,16 @@ import time
 import logging
 
 from math import sqrt, atan2, asin, degrees, radians
-from navio.mpu9250 import MPU9250
 
 logger = logging.getLogger(__name__)
 
 
 def elapsed_micros(start_time_us):
-    return (time.process_time() * 1e6) - start_time_us
+    return (time.perf_counter() * 1e6) - start_time_us
 
 
 def micros():
-    return time.process_time() * 1e6
+    return time.perf_counter() * 1e6
 
 
 class AHRS(object):
@@ -42,24 +41,15 @@ class AHRS(object):
 
     This uses the Madgwick algorithm.
     The update method must be called peiodically.
-    The calculations take 1.6mS on the Pyboard.
     """
     declination = 0                         # Optional offset for true north. A +ve value adds to heading
 
     def __init__(self):
-        self.imu = MPU9250()
-        if self.imu.testConnection():
-            logger.info("Connection established: True")
-            self.imu.initialize()
-            self._connected = True
-        else:
-            logger.error('Could not connect to IMU')
-
         self.magbias = (0, 0, 0)            # local magnetic bias factors: set from calibration
         self.start_time = None              # Time between updates
         self.q = [1.0, 0.0, 0.0, 0.0]       # vector to hold quaternion
-        GyroMeasError = radians(40)         # Original code indicates this leads to a 2 sec response time
-        self.beta = sqrt(3.0 / 4.0) * GyroMeasError  # compute beta (see README)
+        gyro_meas_error = radians(270)         # Original code indicates this leads to a 2 sec response time
+        self.beta = sqrt(3.0 / 4.0) * gyro_meas_error  # compute beta (see README)
 
     def calibrate(self, getxyz, stopfunc, waitfunc=None):
         magmax = list(getxyz())             # Initialise max and min lists with current values
@@ -144,14 +134,13 @@ class AHRS(object):
         norm = 1 / sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)    # normalise quaternion
         self.q = q1 * norm, q2 * norm, q3 * norm, q4 * norm
 
-    def update(self):
+    def update(self, accel, gyro, mag):
         """Must call to get updated data
 
         3-tuples (x, y, z) for accel, gyro and mag data
 
         This should be called at a frequency between 10-50 Hz
         """
-        accel, gyro, mag = self.imu.getMotion9()
         mx, my, mz = (mag[x] - self.magbias[x] for x in range(3))  # Units irrelevant (normalised)
         ax, ay, az = accel  # Units irrelevant (normalised)
         gx, gy, gz = (radians(x) for x in gyro)  # Units deg/s
@@ -238,7 +227,7 @@ class AHRS(object):
         qDot4 = 0.5 * (q1 * gz + q2 * gy - q3 * gx) - self.beta * s4
 
         # Integrate to yield quaternion
-        deltat = elapsed_micros(self.start_time) / 1000000
+        deltat = elapsed_micros(self.start_time) / 1e6
         self.start_time = micros()
         q1 += qDot1 * deltat
         q2 += qDot2 * deltat
@@ -249,10 +238,19 @@ class AHRS(object):
 
 
 if __name__ == '__main__':
+    from navio.mpu9250 import MPU9250
+    imu = MPU9250()
+    imu.initialize()
     ahrs = AHRS()
+    time.sleep(2)
+    count = 1
     while True:
-        ahrs.update()
-        time.sleep(0.1)
-        print('roll: {:.2f}, pitch: {:.2f}, heading: {:.2f}'.format(ahrs.roll,
-                                                                    ahrs.pitch,
-                                                                    ahrs.heading))
+        count += 1
+        accel, gyro, mag = imu.getMotion9()
+        ahrs.update(accel, gyro, mag)
+        time.sleep(0.02)
+        if count % 10 == 0:
+            print('accel: {}, gryo: {}, mag: {}'.format(*ahrs.imu.getMotion9()))
+            print('roll: {:.2f}, pitch: {:.2f}, heading: {:.2f}'.format(ahrs.roll,
+                                                                        ahrs.pitch,
+                                                                        ahrs.heading))

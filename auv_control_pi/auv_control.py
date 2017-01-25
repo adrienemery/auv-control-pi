@@ -4,7 +4,6 @@ import logging
 from collections import deque
 from django.conf import settings
 
-# from navio import pwm
 from django.utils import timezone
 
 from .asgi import channel_layer, AUV_SEND_CHANNEL
@@ -15,8 +14,6 @@ from .models import Configuration
 if settings.SIMULATE:
     from .simulator import GPS, Compass, Navitgator, Motor
 else:
-    from navio.gps import GPS
-    from navio.compass import Compass  # TODO
     from .motor import Motor
     from .navigation import Navigator
 
