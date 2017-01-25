@@ -242,7 +242,22 @@ if __name__ == '__main__':
     imu = MPU9250()
     imu.initialize()
     ahrs = AHRS()
-    time.sleep(2)
+
+    start_calibration = time.perf_counter()
+
+    def stop_fnc():
+        if time.perf_counter() - start_calibration > 10:
+            return True
+        else:
+            print('{}s remaining'.format(int(10 - time.perf_counter() - start_calibration)))
+            return False
+
+    def get_mag_xyz():
+        imu.read_mag()
+        return imu.magnetometer_data
+
+    print('Calibrating Magnatometer: rotate the device in all directions')
+    ahrs.calibrate(getxyz=get_mag_xyz, stopfunc=stop_fnc)
     count = 1
     while True:
         count += 1
@@ -250,7 +265,6 @@ if __name__ == '__main__':
         ahrs.update(accel, gyro, mag)
         time.sleep(0.02)
         if count % 10 == 0:
-            print('accel: {}, gryo: {}, mag: {}'.format(*ahrs.imu.getMotion9()))
             print('roll: {:.2f}, pitch: {:.2f}, heading: {:.2f}'.format(ahrs.roll,
                                                                         ahrs.pitch,
                                                                         ahrs.heading))
