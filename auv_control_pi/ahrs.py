@@ -240,6 +240,7 @@ class AHRS(object):
 if __name__ == '__main__':
     from navio.mpu9250 import MPU9250
     imu = MPU9250()
+    imu.initialize()
     ahrs = AHRS()
     time.sleep(2)
     count = 1
