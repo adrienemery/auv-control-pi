@@ -4,18 +4,20 @@ from navio.pwm import PWM
 T100 = 't100'
 SERVO = 'servo'
 
-# map of duty cycle settings in nanoseconds
-# for more info on the T100 controller specs see
+# map of duty cycle settings in milliseconds which is the
+# units expected by the navio PWM module.
+# For more info on the T100 controller specs see
 # https://www.bluerobotics.com/store/thrusters/besc-30-r1/
 T100_PWM_MAP = {
-    'max_forward': 1900 * 1e3,
-    'min_forward': 1525 * 1e3,
-    'stopped': 1500 * 1e3,
-    'min_reverse': 1475 * 1e3,
-    'max_reverse': 1100 * 1e3,
+    'max_forward': 1.900,
+    'min_forward': 1.525,
+    'stopped': 1.500,
+    'min_reverse': 1.475,
+    'max_reverse': 1.100,
 }
 
-SERVO_PWM_MAP = T100_PWM_MAP  # TODO impliment with servo
+SERVO_PWM_MAP = T100_PWM_MAP
+PWM_FREQUENCY = 50  # Hz
 
 
 class Motor:
@@ -33,9 +35,10 @@ class Motor:
         else:
             raise ValueError('Unknown motor_type')
         self.channel = channel
-        self.pwm = PWM(self.channel, test=test)
-        self._speed = 0
+        self.pwm = PWM(self.channel)
+        self.pwm.set_period(PWM_FREQUENCY)
         self.pwm.set_duty_cycle(self.pwm_map['stopped'])
+        self._speed = 0
 
     @property
     def speed(self):
