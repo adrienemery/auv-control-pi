@@ -129,8 +129,8 @@ class MotorController:
         logger.warning('Adding Motor(name={}, channel={})'.format(name, channel))
         # we need to add one to the channel since they are 0 indexed in code
         # but 1 indexed on the navio2 board
-        self.motors[name] = {'pwm': PWM(channel - 1), 'duty_cycle': T100_PWM_MAP['stopped']}
-        curio.run_in_thread(self.initialize_motor(name))
+        self.motors[name] = {'pwm': PWM(channel - 1), 'duty_cycle': T100_PWM_MAP['stopped'], 'initialized': False}
+        await curio.run_in_thread(self.initialize_motor(name))
 
     async def set_duty_cycle(self, name, duty_cycle_us):
         duty_cycle_ms = duty_cycle_us / 1000  # convert to milliseconds
@@ -149,6 +149,7 @@ class MotorController:
             pwm.enable()
             pwm.set_duty_cycle(self.motors['name']['duty_cycle'])
             time.sleep(1)
+            self.motors[name]['initialized'] = True
 
     async def _read_commands(self):
         """Check for incoming commands on the motor control channel"""
@@ -176,7 +177,8 @@ class MotorController:
         while True:
             for motor_name, data in self.motors.items():
                 if pi:
-                    await curio.run_in_thread(data['pwm'].set_duty_cycle(data['duty_cycle']))
+                    if data['initialized']:
+                        await curio.run_in_thread(data['pwm'].set_duty_cycle(data['duty_cycle']))
             await curio.sleep(0.05)
 
     async def run(self):
