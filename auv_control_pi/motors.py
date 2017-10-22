@@ -47,7 +47,7 @@ def _calculate_value_in_range(min_val, max_val, percentage):
 class Motor:
     """An interface class to allow simple acces to motor functions"""
 
-    def __init__(self, name, rc_channel, motor_type=T100, test=False):
+    def __init__(self, name, rc_channel, motor_type=T100):
         self.name = name
         self.rc_channel = rc_channel
         if motor_type == T100:
@@ -64,7 +64,7 @@ class Motor:
             MOTOR_CONTROL_CHANNEL,
             {
                 'cmd': 'add_motor',
-                'kwargs': {'name': 'left', 'channel': self.rc_channel}
+                'kwargs': {'name': self.name, 'channel': self.rc_channel}
             }
         )
 
@@ -104,7 +104,7 @@ class Motor:
             MOTOR_CONTROL_CHANNEL,
             {
                 'cmd': 'set_duty_cycle',
-                'kwargs': {'name': 'left', 'duty_cycle_us': duty_cycle}
+                'kwargs': {'name': self.name, 'duty_cycle_us': duty_cycle}
             }
         )
 
