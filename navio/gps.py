@@ -1,5 +1,11 @@
+import logging
 import copy
-import spidev
+try:
+    import spidev
+    raspi = True
+except ImportError:
+    raspi = False
+    logging.warning('Not running on Pi. You will not have access to GPS.')
 import math
 import queue
 import struct
@@ -176,9 +182,12 @@ class NavPosllhMsg:
         return '{}\n{}\n{}\n{}\n{}\n{}\n{}'.format(itow, lon, lat, heightEll, heightSea, horAcc, verAcc)
 
 
-ubl = U_blox()
-for ind in range(0, 10):
-    ubl.enable_posllh()
+if raspi:
+    ubl = U_blox()
+    for ind in range(0, 10):
+        ubl.enable_posllh()
+else:
+    ubl = None
 
 
 class GPS:
@@ -203,14 +212,18 @@ class GPS:
             self.horizontal_accruacy = msg.horAcc
             self.vertiacl_accruracy = msg.verAcc
 
-    def run(self):
-        while True:
+    def update(self):
+        if raspi:
             buffer = ubl.bus.xfer2([100])
             for byt in buffer:
                 ubl.scan_ubx(byt)
                 if not ubl.mess_queue.empty():
                     msg = ubl.parse_ubx()
                     self._update(msg)
+
+    def run(self):
+        while True:
+            self.update()
 
 
 if __name__ == '__main__':

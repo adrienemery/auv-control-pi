@@ -2,8 +2,9 @@ import logging
 import time
 
 from collections import deque, namedtuple
-from pygc import great_distance, great_circle
+from pygc import great_distance
 
+from navio.gps import GPS
 from navio.mpu9250 import MPU9250
 from .ahrs import AHRS
 
@@ -39,17 +40,18 @@ class Navitgator:
     # at the waypoint
     TARGET_DISTANCE = 60  # meters
 
-    def __init__(self, left_motor=None, right_motor=None,
-                 update_period=1, current_location=None):
+    def __init__(self, gps, left_motor=None, right_motor=None, update_period=1):
         self._running = False
         self.imu = MPU9250()
         self.imu.initialize()
         self.ahrs = AHRS()
+        self.gps = GPS()
+        self.gps.update()
         self.left_motor = left_motor
         self.right_motor = right_motor
         self.target_waypoint = None
         self.target_heading = None
-        self.current_location = current_location or Point(lat=49.2827, lng=-123.1207)
+        self.current_location = Point(self.gps.lat, self.gps.lon)
 
         self.update_period = update_period
         self.arrived = False
@@ -78,22 +80,36 @@ class Navitgator:
         """
         accel, gyro, mag = self.imu.getMotion9()
         self.ahrs.update(accel, gyro, mag)
-
-        # TODO impliment controls using real io to sensors/motors
-        # update current location
-        # self.current_location = self.gps
+        self.gps.update()
+        self.current_location = Point(self.gps.lat, self.gps.lon)
 
         if self.target_waypoint and not self.arrived:
             # check if we have hit our target
             if self.distance_to_target <= self.TARGET_DISTANCE:
                 try:
-                    # if there are waypoints qued up keep going
+                    # if there are waypoints qeued up keep going
                     self.move_to_waypoint(self.waypoints.popleft())
                 except IndexError:
                     # otherwise we have arrived
                     self.arrived = True
                     logger.info('Arrived at Waypoint({}, {})'.format(self.target_waypoint.lat,
                                                                      self.target_waypoint.lng))
+
+            # otherwise keep steering towards the target waypoint
+            else:
+                # TODO use PID to calculate steering inputs
+                # TODO have a speed setting to throttle speed of craft
+                self.steer()
+
+    def steer(self):
+        # calculate heading error to feed into PID
+        # TODO test the handedness of this
+        heading_error = self.target_heading - self.ahrs.heading
+        if abs(heading_error > 5):  # TODO make this an adjustable config value on in database
+            # take action to ajdust the speed of each motor to steer
+            # in the direction to minimize the heading error
+            # TODO
+            pass
 
     @property
     def distance_to_target(self):

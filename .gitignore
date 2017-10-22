@@ -6,3 +6,6 @@
 __pycache__/
 config.ini
 *.sqlite3
+
+
+auv_control_pi/bin/*

@@ -1,4 +1,4 @@
-from ..motor import _calculate_value_in_range
+from ..motors import _calculate_value_in_range
 
 
 def test_calculate_value_in_range_max():

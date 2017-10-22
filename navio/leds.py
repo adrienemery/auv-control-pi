@@ -1,6 +1,15 @@
 ON = 0
 OFF = 1
 
+BLACK = (OFF, OFF, OFF)
+RED = (ON, OFF, OFF)
+BLUE = (OFF, ON, OFF)
+GREEN = (OFF, OFF, ON)
+CYAN = (OFF, ON, ON),
+MAGENTA = (ON, OFF, ON)
+YELLOW = (ON, ON, OFF)
+WHITE = (ON, ON, ON)
+
 
 class Pin:
 
@@ -18,20 +27,11 @@ class Pin:
 
 class Led:
 
-    BLACK = (OFF, OFF, OFF)
-    RED = (ON, OFF, OFF)
-    BLUE = (OFF, ON, OFF)
-    GREEN = (OFF, OFF, ON)
-    CYAN = (OFF, ON, ON),
-    MAGENTA = (ON, OFF, ON)
-    YELLOW = (ON, ON, OFF)
-    WHITE = (ON, ON, ON)
-
     def __init__(self):
         self.led_red = Pin("rgb_led0")
         self.led_blue = Pin("rgb_led1")
         self.led_green = Pin("rgb_led2")
-        self._color = self.BLACK
+        self._color = BLACK
 
         self.led_red.write(OFF)
         self.led_blue.write(OFF)

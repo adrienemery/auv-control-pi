@@ -16,7 +16,7 @@ class GPS:
         self.lng = -123.1207
 
 
-class Compass:
+class AHRS:
 
     def __init__(self):
         self.heading = 0
@@ -39,11 +39,11 @@ class Navitgator:
     # at the waypoint
     TARGET_DISTANCE = 20  # meters
 
-    def __init__(self, gps, compass,
+    def __init__(self, gps=None,
                  left_motor=None, right_motor=None,
                  update_period=1, current_location=None):
-        self._gps = gps
-        self._compass = compass
+        self._gps = GPS()
+        self._ahrs = AHRS()
         self._left_motor = left_motor
         self._right_motor = right_motor
         self._running = False
@@ -61,7 +61,7 @@ class Navitgator:
     def move_to_waypoint(self, waypoint):
         self.arrived = False
         self.target_waypoint = waypoint
-        self._compass.heading = heading_to_point(self._current_location, waypoint)
+        self._ahrs.heading = heading_to_point(self._current_location, waypoint)
         self.speed = 50
 
     def start_trip(self, waypoints=None):
@@ -79,7 +79,7 @@ class Navitgator:
         # update current position based on speed
         distance = self.speed * self.update_period
         result = great_circle(distance=distance,
-                              azimuth=self._compass.heading,
+                              azimuth=self._ahrs.heading,
                               latitude=self._current_location.lat,
                               longitude=self._current_location.lng)
         self._current_location = Point(result['latitude'], result['longitude'])
@@ -88,8 +88,8 @@ class Navitgator:
 
         if self.target_waypoint and not self.arrived:
             # update compass heading if we have a target waypoint
-            self._compass.heading = heading_to_point(self._current_location,
-                                                     self.target_waypoint)
+            self._ahrs.heading = heading_to_point(self._current_location,
+                                                  self.target_waypoint)
             # check if we have hit our target
             if self.distance_to_target <= self.TARGET_DISTANCE:
                 try:
@@ -105,8 +105,8 @@ class Navitgator:
         else:
             # update heading and speed based on motor speeds
             self.speed = (self._left_motor.speed + self._right_motor.speed) // 2
-            self._compass.heading += ((self._left_motor.speed - self._right_motor.speed) / 10)
-            self._compass.heading = abs(self._compass.heading % 360)
+            self._ahrs.heading += ((self._left_motor.speed - self._right_motor.speed) / 10)
+            self._ahrs.heading = abs(self._ahrs.heading % 360)
 
     @property
     def distance_to_target(self):

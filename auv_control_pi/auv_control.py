@@ -12,9 +12,9 @@ from .models import Configuration
 
 
 if settings.SIMULATE:
-    from .simulator import GPS, Compass, Navitgator, Motor
+    from .simulator import Navitgator, Motor
 else:
-    from .motor import Motor
+    from .motors import Motor
     from .navigation import Navigator
 
 
@@ -43,15 +43,13 @@ class Mothership:
         self.mode = self.MANUAL
         self.waypoints = deque()
         self.update_frequency = 1
-        self._gps = GPS()
-        self._compass = Compass()
         self.trip = None
         if settings.SIMULATE:
-            self._navigator = Navitgator(gps=self._gps, compass=self._compass,
-                                         right_motor=self.right_motor,
+            self._navigator = Navitgator(right_motor=self.right_motor,
                                          left_motor=self.left_motor)
         else:
-            self._navigator = Navigator()
+            self._navigator = Navigator(right_motor=self.right_motor,
+                                        left_motor=self.left_motor)
 
     async def move_right(self, speed=None):
         logger.info('Move right with speed {}'.format(speed))
@@ -147,27 +145,27 @@ class Mothership:
         """Broadcast current state on the auv update channel"""
         while True:
             payload = {
-                'lat': self._gps.lat,
-                'lng': self._gps.lng,
-                'heading': self._compass.heading,
-                'speed': self._navigator.speed,
+                # 'lat': self._gps.lat,
+                # 'lng': self._gps.lng,
+                # 'heading': self._compass.heading,
+                # 'speed': self._navigator.speed,
                 'left_motor_speed': self.left_motor.speed,
                 'right_motor_speed': self.right_motor.speed,
-                'distance_to_target': self._navigator.distance_to_target,
+                # 'distance_to_target': self._navigator.distance_to_target,
                 'mode': self.mode,
-                'arrived': self._navigator.arrived,
+                # 'arrived': self._navigator.arrived,
                 'timestamp': timezone.now().isoformat()
             }
-            if self._navigator.target_waypoint:
-                payload['target_waypoint'] = {
-                    'lat': self._navigator.target_waypoint.lat,
-                    'lng': self._navigator.target_waypoint.lng
-                }
-            else:
-                payload['target_waypoint'] = None
+            # if self._navigator.target_waypoint:
+            #     payload['target_waypoint'] = {
+            #         'lat': self._navigator.target_waypoint.lat,
+            #         'lng': self._navigator.target_waypoint.lng
+            #     }
+            # else:
+            #     payload['target_waypoint'] = None
 
             # broadcast auv data to group
-            channel_layer.send('auv.update', payload)
+            # channel_layer.send('auv.update', payload)
             logger.debug('Broadcast udpate')
             await curio.sleep(1 / self.update_frequency)
 

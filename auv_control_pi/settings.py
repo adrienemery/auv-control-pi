@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'solo',
     'auv_control_pi',
 ]
@@ -124,4 +125,10 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "asgi_redis.RedisChannelLayer",
+        "ROUTING": "auv_control_pi.routing.channel_routing",
+    },
+}
 
