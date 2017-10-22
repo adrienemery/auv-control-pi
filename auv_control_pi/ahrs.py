@@ -24,6 +24,7 @@ import time
 import logging
 
 from math import sqrt, atan2, asin, degrees, radians
+from .navigation import heading_modulo_180
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +43,16 @@ class AHRS(object):
     This uses the Madgwick algorithm.
     The update method must be called peiodically.
     """
-    declination = 0                         # Optional offset for true north. A +ve value adds to heading
+    # Local declination http://www.magnetic-declination.com/
+    # EAST/WEST declination is not relative to GPS EAST/WEST position
+    # Vancouver, BC, Canada : 16° 18'EAST = 16,3° (hard-codded for now)
+    declination = 16.3                             # Optional offset for true north. A +ve value adds to heading
 
     def __init__(self):
-        self.magbias = (0, 0, 0)            # local magnetic bias factors: set from calibration
-        self.start_time = None              # Time between updates
-        self.q = [1.0, 0.0, 0.0, 0.0]       # vector to hold quaternion
-        gyro_meas_error = radians(270)         # Original code indicates this leads to a 2 sec response time
+        self.magbias = (0, 0, 0)                    # local magnetic bias factors: set from calibration
+        self.start_time = None                      # Time between updates
+        self.q = [1.0, 0.0, 0.0, 0.0]               # vector to hold quaternion
+        gyro_meas_error = radians(270)              # Original code indicates this leads to a 2 sec response time
         self.beta = sqrt(3.0 / 4.0) * gyro_meas_error  # compute beta (see README)
 
     def calibrate(self, getxyz, stopfunc, waitfunc=None):
@@ -65,8 +69,8 @@ class AHRS(object):
 
     @property
     def heading(self):
-        return self.declination + degrees(atan2(2.0 * (self.q[1] * self.q[2] + self.q[0] * self.q[3]),
-            self.q[0] * self.q[0] + self.q[1] * self.q[1] - self.q[2] * self.q[2] - self.q[3] * self.q[3]))
+        return heading_modulo_180(self.declination + degrees(atan2(2.0 *(self.q[1] * self.q[2] + self.q[0] * self.q[3]),
+            self.q[0] * self.q[0] + self.q[1] * self.q[1] - self.q[2] * self.q[2] - self.q[3] * self.q[3])))
 
     @property
     def pitch(self):
