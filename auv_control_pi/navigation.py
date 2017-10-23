@@ -192,11 +192,11 @@ class PositionControl:
             self.position['drift'] = 'right'
 
     def green_orange_zone_limit_points(self):
-        self.C1.lat, self.C2.lng, _ = vinc_pt(self.B.lat, self.B.lng, self.gamma1, self.green_zone_radius)
+        self.C1.lat, self.C1.lng, _ = vinc_pt(self.B.lat, self.B.lng, self.gamma1, self.green_zone_radius)
         self.C2.lat, self.C2.lng, _ = vinc_pt(self.B.lat, self.B.lng, self.gamma2, self.green_zone_radius)
 
     def orange_red_zone_limit_points(self):
-        self.D1.lat, self.D2.lng, _ = vinc_pt(self.B.lat, self.B.lng, self.gamma1, self.orange_zone_radius)
+        self.D1.lat, self.D1.lng, _ = vinc_pt(self.B.lat, self.B.lng, self.gamma1, self.orange_zone_radius)
         self.D2.lat, self.D2.lng, _ = vinc_pt(self.B.lat, self.B.lng, self.gamma2, self.orange_zone_radius)
 
     # When this method is being called A is the starting point
@@ -212,7 +212,7 @@ class PositionControl:
         if self.position['drift'] == 'right':
             self.delta1 = heading_to_point(current_position, self.C2)
             if self.delta1 > self.alpha:  # we just crossed the border or just started our trip
-                if self.self.time_in_zone['green'] < 5: # it just happened, wait a moment before making it official
+                if self.self.time_in_zone['green'] < 5:  # it just happened, wait a moment before making it official
                     self.self.time_in_zone['green'] += 1
                     await time.sleep(1)
                 if self.self.time_in_zone['green'] >= 5:  # We've been long enough in the zone to consider ourselves in
@@ -357,7 +357,7 @@ class PositionControl:
         self.check_current_zone(current_position)
         # if self.in_green_zone:  # let it go, meaning: don't change the current heading
 
-        # Probably not a good idea to constantly check zone and apply a new heading when in orange zone
+        # Probably not a good idea to constantly check zone AND apply a new heading when in orange zone
         # Or may be it is?
         if self.position['zone'] == 'orange' or self.position['zone'] == 'red':
             self.compute_new_heading(current_position)
@@ -377,3 +377,5 @@ class PositionControl:
 # That would probably make the control easiest and the math less sensitive to small variation
 
 # So, before the PositionControl.update call, we must have everything aligned.
+
+# What if we are in the green zone but teh current is pushing us backward?
