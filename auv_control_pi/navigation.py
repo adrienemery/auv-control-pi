@@ -180,10 +180,10 @@ class PositionControl:
         self.orange_zone_radius = target_radius or 60  # behind that radius, it's red zone
         self.position = {'drift': 'straight',
                          'zone': 'green',
+                         'time_in_zone': {'green': 0,
+                                          'orange': 0,
+                                          'red': 0},
                          'danger': False}
-        self.time_in_zone = {'green': 0,
-                             'orange': 0,
-                             'red': 0}
 
     def drift_position(self, current_position=None):
         if distance_to_point(current_position, self.C1) < distance_to_point(current_position, self.C2):
@@ -211,27 +211,27 @@ class PositionControl:
     async def in_green_zone_check(self, current_position=None):
         if self.position['drift'] == 'right':
             self.delta1 = heading_to_point(current_position, self.C2)
-            if self.delta1 > self.alpha:  # we just crossed the border or just started our trip
-                if self.self.time_in_zone['green'] < 5:  # it just happened, wait a moment before making it official
-                    self.self.time_in_zone['green'] += 1
+            if self.delta1 > self.alpha:  # we just crossed the border from orange or just started our trip
+                self.position['time_in_zone']['orange'] = 0  # reset the timer from the orange zone (we could come from it)
+                if self.self.position['time_in_zone']['green'] < 5:  # it just happened, wait a moment before making it official
+                    self.self.position['time_in_zone']['green'] += 1
                     await time.sleep(1)
-                if self.self.time_in_zone['green'] >= 5:  # We've been long enough in the zone to consider ourselves in
+                if self.self.position['time_in_zone']['green'] >= 5:  # We've been long enough in the zone to consider ourselves in
                     self.position['zone'] = 'green'
                     self.position['danger'] = 'False'
-                    self.time_in_zone['orange'] = 0  # reset the timer from the orange zone (we could come from it)
             # elif self.delta1 < self.alpha: We are in orange zone, let 'in_orange_zone_check' method take care of it
             # else self.alpha == self.delta: -> threshold. 'in_the_green_zone' keeps its previous value
 
         elif self.position['drift'] == 'left':
             self.delta1 = heading_to_point(current_position, self.C1)
             if self.delta1 < self.alpha:  # we just crossed the border, or just started our trip
-                if self.self.time_in_zone['green'] < 5:
-                    self.self.time_in_zone['green'] += 1
+                self.self.position['time_in_zone']['orange'] = 0
+                if self.self.position['time_in_zone']['green'] < 5:
+                    self.self.position['time_in_zone']['green'] += 1
                     await time.sleep(1)
-                if self.self.time_in_zone['green'] >= 5:  # We've been long enough in the zone to consider ourselves in
+                if self.self.position['time_in_zone']['green'] >= 5:  # We've been long enough in the zone to consider ourselves in
                     self.position['zone'] = 'green'
                     self.position['danger'] = 'False'
-                    self.self.time_in_zone['orange'] = 0
             # elif self.delta1 > self.alpha: We are in orange zone, let 'in_orange_zone_check' method take care of it
             # else self.alpha == self.delta1: -> threshold. 'in_the_green_zone' keeps its previous value
         # else "straight" do nothing
@@ -241,18 +241,19 @@ class PositionControl:
             self.delta1 = heading_to_point(current_position, self.C2)
             self.delta2 = heading_to_point(current_position, self.D2)
             if self.delta1 < self.alpha < self.delta2:  # in orange zone
-                if self.self.time_in_zone['orange'] < 5:  # we just crossed the border
-                    self.self.time_in_zone['orange'] += 1
+                self.self.position['time_in_zone']['green'] = 0
+                self.self.position['time_in_zone']['red'] = 0
+                if self.self.position['time_in_zone']['orange'] < 5:  # we just crossed the border
+                    self.self.position['time_in_zone']['orange'] += 1
                     await time.sleep(1)
-                if self.self.time_in_zone['orange'] >= 5:  # we've been in orange zone for a while now
+                if self.self.position['time_in_zone']['orange'] >= 5:  # we've been in orange zone for a while now
                     if self.position['zone'] == 'green':  # if previous zone is green
                         self.position['zone'] = 'orange'
                     elif self.position['zone'] == 'red': # if previous zone is red
                         self.position['zone'] = 'red&orange'
                     # if we come from the red zone we want to keep that information
                     # because we don't want to change the heading again when we cross back to the orange zone
-                    self.self.time_in_zone['green'] = 0
-                    self.self.time_in_zone['red'] = 0
+
             # elif other cases, means not in orange zone but either in green or red zone.
             # Let those colour_zone_check methods handle it
             # elif self.alpha == self.delta1: -> threshold. 'in_the_green_zone' keeps its previous value
@@ -262,17 +263,17 @@ class PositionControl:
             self.delta1 = heading_to_point(current_position, self.C1)
             self.delta2 = heading_to_point(current_position, self.D1)
             if self.delta2 < self.alpha < self.delta1:  # in orange zone
-                if self.self.time_in_zone['orange'] < 5:  # we just crossed the border
-                    self.self.time_in_zone['orange'] += 1
+                self.self.position['time_in_zone']['green'] = 0
+                self.self.position['time_in_zone']['red'] = 0
+                if self.self.position['time_in_zone']['orange'] < 5:  # we just crossed the border
+                    self.self.position['time_in_zone']['orange'] += 1
                     await time.sleep(1)
-                if self.self.time_in_zone['orange'] >= 5:  # we've been in orange zone for a while now
+                if self.self.position['time_in_zone']['orange'] >= 5:  # we've been in orange zone for a while now
                     # We want a different behaviour whether we come from the green zone or the red zone
                     if self.position['zone'] == 'green':  # if previous zone is green
                         self.position['zone'] = 'orange'
                     elif self.position['zone'] == 'red':  # if previous zone is red
                         self.position['zone'] = 'red&orange'
-                    self.self.time_in_zone['green'] = 0
-                    self.self.time_in_zone['red'] = 0
             # elif other cases, means not in orange zone but either in green or red zone.
             # Let those colour_zone_check methods handle it
             # elif self.alpha == self.delta1: -> threshold. 'in_the_green_zone' keeps its previous value
@@ -286,15 +287,15 @@ class PositionControl:
         if self.position['drift'] == 'right':
             self.delta1 = heading_to_point(current_position, self.D2)
             if self.delta1 < self.alpha:
-                if self.self.time_in_zone['red'] < 5:  # we just crossed the border, or just started our trip
-                    self.self.time_in_zone['red'] += 1
+                self.self.position['time_in_zone']['orange'] = 0  # then reset orange timer
+                if self.self.position['time_in_zone']['red'] < 5:  # we just crossed the border, or just started our trip
+                    self.self.position['time_in_zone']['red'] += 1
                     await time.sleep(1)
-                if self.self.time_in_zone['red'] >= 5:  # We've been long enough the zone to consider ourselves in
+                if self.self.position['time_in_zone']['red'] >= 5:  # We've been long enough the zone to consider ourselves in
                     self.position['zone'] = 'red'
-                    self.self.time_in_zone['orange'] = 0  # then reset orange timer
-                    self.self.time_in_zone['red'] += 1  # continue checking time in red zone
+                    self.self.position['time_in_zone']['red'] += 1  # continue checking time in red zone
                     await time.sleep(1)
-                if self.self.time_in_zone['red'] > 180:
+                if self.self.position['time_in_zone']['red'] > 180:
                     self.position['danger'] = 'True'
             # elif self.delta1 > self.alpha: We are in orange zone, let 'in_orange_zone_check' method take care of it
             # else self.alpha == self.delta: -> threshold. 'in_the_green_zone' keeps its previous value
@@ -302,15 +303,15 @@ class PositionControl:
         elif self.position['direction'] == 'left':
             self.delta1 = heading_to_point(current_position, self.D1)
             if self.delta1 > self.alpha:
-                if self.self.time_in_zone['red'] < 5:  # we just crossed the border, or just started our trip
-                    self.self.time_in_zone['red'] += 1
+                self.self.position['time_in_zone']['orange'] = 0
+                if self.self.position['time_in_zone']['red'] < 5:  # we just crossed the border
+                    self.self.position['time_in_zone']['red'] += 1
                     await time.sleep(1)
-                if self.self.time_in_zone['red'] >= 5:  # We've been long enough in the zone to consider ourselves in
+                if self.self.position['time_in_zone']['red'] >= 5:  # We've been long enough in the zone to consider ourselves in
                     self.position['zone'] = 'red'
-                    self.self.time_in_zone['orange'] = 0
-                    self.self.time_in_zone['red'] += 1  # continue checking time in red zone
+                    self.self.position['time_in_zone']['red'] += 1  # continue checking time in red zone
                     await time.sleep(1)
-                if self.self.time_in_zone['red'] > 180:
+                if self.self.position['time_in_zone']['red'] > 180:
                     self.position['danger'] = 'True'
             # elif self.delta1 < self.alpha: We are in orange zone, let 'in_orange_zone_check' method take care of it
             # else self.alpha == self.delta1: -> threshold. 'in_the_red_zone' keeps its previous value
@@ -364,10 +365,10 @@ class PositionControl:
 
 
 # IDEAS:
-# The code should try to always keep the same heading (same alpha) until decided to change.
+# The code should try to always keep the same heading (same alpha) in background until decided to change.
 # Meaning we should always try to look in the same direction whether we are drifting or not
 
-# Alpha should be where we're looking. not the heading from A to B.
+# Alpha should be where we're looking.
 # So, before starting the first route to the first waypoint, we should align alpha with A-B heading.
 # And as the mothership is moving (in the green zone) constantly correct where the board is looking
 # to keep both headings aligned (NOTE it'll probably be a freaking mess when heading straight south with -180/180 limit)
@@ -378,4 +379,4 @@ class PositionControl:
 
 # So, before the PositionControl.update call, we must have everything aligned.
 
-# What if we are in the green zone but teh current is pushing us backward?
+# What if we are in the green zone but the current is pushing us backward?
