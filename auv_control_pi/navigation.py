@@ -15,7 +15,11 @@ Point = namedtuple('Point', ['lat', 'lng'])
 
 
 def heading_to_point(point_a, point_b):
-    """Calculate heading between two points
+    """
+    Calculate heading between two points
+    :param point_a: Coordinate Point(lat,lng) of a 1st point
+    :param point_b: Coordinate Point(lat,lng) of a 2nd point
+    :return: Heading from A to B
     """
     result = great_distance(start_latitude=point_a.lat,
                             start_longitude=point_a.lng,
@@ -25,7 +29,11 @@ def heading_to_point(point_a, point_b):
 
 
 def distance_to_point(point_a, point_b):
-    """Calculate distance between to points
+    """
+    Calculate distance between to points
+    :param point_a: Coordinate Point(lat,lng) of a 1st point
+    :param point_b: Coordinate Point(lat,lng) of a 2nd point
+    :return: Distance between A and B
     """
     result = great_distance(start_latitude=point_a.lat,
                             start_longitude=point_a.lng,
@@ -34,10 +42,27 @@ def distance_to_point(point_a, point_b):
     return float(result['distance'])
 
 
+def get_new_point(point_a, bearing, distance):
+    """
+    Calculate the coordinates of a point, given a starting point a bearing and a distance
+    :param point_a: reference point coordinates Point(lat,lng)
+    :param bearing: bearing from reference point to new point
+    :param distance: distance between the reference point and the new point
+    :return: new point coordinates Point(lat,lng)
+    """
+    f = 1 / 298.277223563  # flattening of the ellipsoid
+    a = 6378137.0  # length of the semi - major axis(radius at equator)
+
+    new_point_lat, new_point_lng, _ = vinc_pt(f, a, point_a.lat, point_a.lng, bearing, distance)
+    new_point = Point(lat=new_point_lat, lng=new_point_lng)
+    return new_point
+
+
 def heading_modulo_180(heading):
-    """If after some corrections, heading is greater than 180 or lower than -180 then this returns the right heading
-    Expected input: a heading
-    Output: the correct "new" heading in [-180:180]
+    """
+    Corrects heading value to range between [-180:180]
+    :param heading: a heading with potential value ranges outside of [-180:180]
+    :return: corrected heading which value ranges between [-180:180]
     """
     while heading > 180 or heading < -180:
         if heading > 180:
@@ -192,12 +217,12 @@ class PositionControl:
             self.position['drift'] = 'right'
 
     def green_orange_zone_limit_points(self):
-        self.C1.lat, self.C1.lng, _ = vinc_pt(self.B.lat, self.B.lng, self.gamma1, self.green_zone_radius)
-        self.C2.lat, self.C2.lng, _ = vinc_pt(self.B.lat, self.B.lng, self.gamma2, self.green_zone_radius)
+        self.C1 = get_new_point(self.B, self.gamma1, self.green_zone_radius)
+        self.C2 = get_new_point(self.B, self.gamma2, self.green_zone_radius)
 
     def orange_red_zone_limit_points(self):
-        self.D1.lat, self.D1.lng, _ = vinc_pt(self.B.lat, self.B.lng, self.gamma1, self.orange_zone_radius)
-        self.D2.lat, self.D2.lng, _ = vinc_pt(self.B.lat, self.B.lng, self.gamma2, self.orange_zone_radius)
+        self.D1 = get_new_point(self.B, self.gamma1, self.orange_zone_radius)
+        self.D2 = get_new_point(self.B, self.gamma2, self.orange_zone_radius)
 
     # When this method is being called A is the starting point
     def set_limits(self, target=None, heading_to_target=None):
