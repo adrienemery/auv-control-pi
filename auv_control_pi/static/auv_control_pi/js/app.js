@@ -40,7 +40,7 @@ ws.onopen = function () {
 
 ws.onmessage = function (evt) {
     // message recieved
-    vm.data = evt.data;
+    vm.data = JSON.parse(evt.data);
 };
 
 ws.onclose = function () {

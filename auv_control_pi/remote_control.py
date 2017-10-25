@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from autobahn.asyncio.wamp import ApplicationSession
+from channels import Channel
 
 from .asgi import channel_layer, AUV_SEND_CHANNEL
 from .models import Configuration
@@ -24,7 +25,7 @@ class RemoteInterface(ApplicationSession):
         """Relay commands to Mothership over asgi channels"""
         assert isinstance(msg, dict)
         msg['sender'] = 'remote_control'
-        channel_layer.send(AUV_SEND_CHANNEL, msg)
+        Channel(AUV_SEND_CHANNEL).send(msg)
         logger.info('sending cmd: {}'.format(msg))
 
     @staticmethod

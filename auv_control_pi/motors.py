@@ -3,6 +3,8 @@ import logging
 
 import time
 
+from channels import Channel
+
 from auv_control_pi.consumers import AsyncConsumer
 from .asgi import channel_layer, MOTOR_CONTROL_CHANNEL
 from navio.pwm import PWM
@@ -26,11 +28,11 @@ SERVO = 'servo'
 # For more info on the T100 controller specs see
 # https://www.bluerobotics.com/store/thrusters/besc-30-r1/
 T100_PWM_MAP = {
-    'max_forward': int(1900 * 0.9),  # limit max mower to avoid burning out motor
+    'max_forward': int((1900 - 1525) * 0.9) + 1525,  # limit max mower to avoid burning out motor
     'min_forward': 1525,
     'stopped': 1500,
     'min_reverse': 1475,
-    'max_reverse': int(1100 * 0.9),  # limit max mower to avoid burning out motor
+    'max_reverse': 1475 - int((1475 - 1100) * 0.9),  # limit max mower to avoid burning out motor
 }
 
 SERVO_PWM_MAP = T100_PWM_MAP
@@ -62,10 +64,10 @@ class Motor:
             raise ValueError('Unknown motor_type')
 
         self._speed = 0
+        self.duty_cycle = self.pwm_map['stopped']
 
         # add motor to the motor controller
-        channel_layer.send(
-            MOTOR_CONTROL_CHANNEL,
+        Channel(MOTOR_CONTROL_CHANNEL).send(
             {
                 'cmd': 'add_motor',
                 'params': {'name': self.name, 'channel': self.rc_channel}
@@ -107,10 +109,10 @@ class Motor:
             )
 
         self._speed = value
+        self.duty_cycle = duty_cycle
 
         # update the motor conroller with the calculated duty cycle in microseconds
-        channel_layer.send(
-            MOTOR_CONTROL_CHANNEL,
+        Channel(MOTOR_CONTROL_CHANNEL).send(
             {
                 'cmd': 'set_duty_cycle',
                 'params': {'name': self.name, 'duty_cycle_us': duty_cycle}

@@ -3,8 +3,8 @@ import json
 
 import curio
 
-from channels import Channel
-from .asgi import AUV_SEND_CHANNEL, channel_layer
+from channels import Channel, Group
+from .asgi import AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL, channel_layer
 
 
 def ws_add(message):
@@ -13,6 +13,7 @@ def ws_add(message):
     message.reply_channel.send(
         {"accept": True}
     )
+    Group(AUV_UPDATE_CHANNEL).add(message.reply_channel)
 
 
 def ws_message(message):

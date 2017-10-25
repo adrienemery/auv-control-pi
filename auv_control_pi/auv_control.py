@@ -1,18 +1,23 @@
+import json
+
 import curio
 import logging
 
 from collections import deque
+
+from channels import Group
 from django.conf import settings
 
 from django.utils import timezone
 
-from .asgi import channel_layer, AUV_SEND_CHANNEL
+from auv_control_pi.consumers import AsyncConsumer
+from .asgi import channel_layer, AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL
 from .navigation import Point, Trip
 from .models import Configuration
 from .motors import Motor
 
 if settings.SIMULATE:
-    from .simulator import Navitgator
+    from .simulator import Navitgator, GPS
 else:
     from .navigation import Navigator
 
@@ -20,9 +25,10 @@ else:
 logger = logging.getLogger(__name__)
 
 
-class Mothership:
+class Mothership(AsyncConsumer):
     """Main entry point for controling the Mothership and AUV
     """
+    channels = [AUV_SEND_CHANNEL]
 
     MANUAL = 'manual'
     LOITER = 'loiter'
@@ -120,27 +126,6 @@ class Mothership:
             if hasattr(self, attr):
                 setattr(self, attr, val)
 
-    async def _read_commands(self):
-        # check for commands to send to auv
-        channels = [AUV_SEND_CHANNEL]
-        # read all messages off of channel
-        while True:
-            _, data = channel_layer.receive_many(channels)
-            if data:
-                logger.debug('Recieved data: {}'.format(data))
-                try:
-                    fnc = getattr(self, data.get('cmd'))
-                except AttributeError:
-                    pass
-                else:
-                    if fnc and callable(fnc):
-                        try:
-                            await curio.run_in_thread(fnc, **data.get('params', {}))
-                        except Exception as exc:
-                            logger.error()
-            else:
-                await curio.sleep(0.05)  # chill out for a bit
-
     async def run(self):
         logger.info('Starting Mothership')
         await curio.spawn(self._update())
@@ -151,28 +136,20 @@ class Mothership:
         """Broadcast current state on the auv update channel"""
         while True:
             payload = {
-                # 'lat': self._gps.lat,
-                # 'lng': self._gps.lng,
-                # 'heading': self._compass.heading,
-                # 'speed': self._navigator.speed,
+                'lat': self.lat,
+                'lng': self.lng,
+                'heading': self.heading,
                 'left_motor_speed': self.left_motor.speed,
+                'left_motor_duty_cycle': self.left_motor.duty_cycle,
                 'right_motor_speed': self.right_motor.speed,
-                # 'distance_to_target': self._navigator.distance_to_target,
+                'right_motor_duty_cycle': self.right_motor.duty_cycle,
                 'mode': self.mode,
-                # 'arrived': self._navigator.arrived,
                 'timestamp': timezone.now().isoformat()
             }
-            # if self._navigator.target_waypoint:
-            #     payload['target_waypoint'] = {
-            #         'lat': self._navigator.target_waypoint.lat,
-            #         'lng': self._navigator.target_waypoint.lng
-            #     }
-            # else:
-            #     payload['target_waypoint'] = None
 
             # broadcast auv data to group
-            # channel_layer.send('auv.update', payload)
+            Group(AUV_UPDATE_CHANNEL).send({'text': json.dumps(payload)})
             logger.debug('Broadcast udpate')
-            await curio.sleep(1 / self.update_frequency)
+            await curio.sleep(1 / 10)
 
 
