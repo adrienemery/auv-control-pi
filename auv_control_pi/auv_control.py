@@ -9,12 +9,11 @@ from django.utils import timezone
 from .asgi import channel_layer, AUV_SEND_CHANNEL
 from .navigation import Point, Trip
 from .models import Configuration
-
+from .motors import Motor
 
 if settings.SIMULATE:
-    from .simulator import Navitgator, Motor
+    from .simulator import Navitgator
 else:
-    from .motors import Motor
     from .navigation import Navigator
 
 
@@ -38,8 +37,8 @@ class Mothership:
         self.water_temperature = 0
         self.command_buffer = deque()
         config = Configuration.get_solo()
-        self.left_motor = Motor(config.left_motor_channel)
-        self.right_motor = Motor(config.right_motor_channel)
+        self.left_motor = Motor(name='left', rc_channel=config.left_motor_channel)
+        self.right_motor = Motor(name='right', rc_channel=config.right_motor_channel)
         self.mode = self.MANUAL
         self.waypoints = deque()
         self.update_frequency = 1
@@ -51,53 +50,60 @@ class Mothership:
             self._navigator = Navigator(right_motor=self.right_motor,
                                         left_motor=self.left_motor)
 
-    async def move_right(self, speed=None):
+    def set_motor_speed(self, motor_side, speed):
+        try:
+            motor = getattr(self, '{}_motor'.format(motor_side))
+            motor.speed = int(speed)
+        except AttributeError:
+            logger.warning('Motor "{}" does not exist'.format(motor_side))
+
+    def move_right(self, speed=None):
         logger.info('Move right with speed {}'.format(speed))
         if speed is None:
             speed = 50
-        self.left_motor.speed = abs(speed)
-        self.right_motor.speed = -abs(speed)
+        self.left_motor.forward(speed)
+        self.right_motor.reverse(speed)
 
-    async def move_left(self, speed=None):
+    def move_left(self, speed=None):
         logger.info('Move left with speed {}'.format(speed))
         if speed is None:
             speed = 50
-        self.left_motor.speed = -abs(speed)
-        self.right_motor.speed = abs(speed)
+        self.left_motor.reverse(speed)
+        self.right_motor.forward(speed)
 
-    async def move_forward(self, speed=None):
+    def move_forward(self, speed=None):
         logger.info('Move forward with speed {}'.format(speed))
-        if speed is not None:
+        if speed is None:
             speed = 50
-        self.left_motor.speed = abs(speed)
-        self.right_motor.speed = abs(speed)
+        self.left_motor.forward(speed)
+        self.right_motor.forward(speed)
 
-    async def move_reverse(self, speed=None):
+    def move_reverse(self, speed=None):
         logger.info('Move reverse with speed {}'.format(speed))
-        if speed is not None:
+        if speed is None:
             speed = 50
-        self.left_motor.speed = -abs(speed)
-        self.right_motor.speed = -abs(speed)
+        self.left_motor.reverse(speed)
+        self.right_motor.reverse(speed)
 
-    async def stop(self):
+    def stop(self):
         logger.info('Stopping')
         self._navigator.pause_trip()
-        self.left_motor.speed = 0
-        self.right_motor.speed = 0
+        self.left_motor.stop()
+        self.right_motor.stop()
 
-    async def move_to_waypoint(self, lat, lng):
+    def move_to_waypoint(self, lat, lng):
         self._navigator.move_to_waypoint(Point(lat=lat, lng=lng))
         self.mode = self.MOVE_TO_WAYPOINT
         logger.info('Moving to waypoint: ({}, {})'.format(lat, lng))
 
-    async def start_trip(self):
+    def start_trip(self):
         if self.trip:
             self._navigator.start_trip(self.trip.waypoints)
             self.mode = self.TRIP
             logger.info('Starting trip with id: {}'.format(self.trip.pk))
         logger.warning('No trip set to start')
 
-    async def set_trip(self, trip):
+    def set_trip(self, trip):
         if trip is not None:
             self.trip = Trip(pk=trip['id'], waypoints=trip['waypoints'])
             logger.info('Trip set with id: {}'.format(trip['id']))
@@ -129,7 +135,7 @@ class Mothership:
                 else:
                     if fnc and callable(fnc):
                         try:
-                            await fnc(**data.get('kwargs', {}))
+                            await curio.run_in_thread(fnc, **data.get('params', {}))
                         except Exception as exc:
                             logger.error()
             else:
@@ -170,4 +176,3 @@ class Mothership:
             await curio.sleep(1 / self.update_frequency)
 
 
-mothership = Mothership()

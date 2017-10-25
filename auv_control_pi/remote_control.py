@@ -98,7 +98,7 @@ class RemoteInterface(ApplicationSession):
         self._check_speed(speed)
         msg = {
             'cmd': 'move_right',
-            'kwargs': {'speed': speed}
+            'params': {'speed': speed}
         }
         self._relay_cmd(msg)
 
@@ -107,7 +107,7 @@ class RemoteInterface(ApplicationSession):
         self._check_speed(speed)
         msg = {
             'cmd': 'move_left',
-            'kwargs': {'speed': speed}
+            'params': {'speed': speed}
         }
         self._relay_cmd(msg)
 
@@ -116,7 +116,7 @@ class RemoteInterface(ApplicationSession):
         self._check_speed(speed)
         msg = {
             'cmd': 'move_forward',
-            'kwargs': {'speed': speed}
+            'params': {'speed': speed}
         }
         self._relay_cmd(msg)
 
@@ -125,14 +125,14 @@ class RemoteInterface(ApplicationSession):
         self._check_speed(speed)
         msg = {
             'cmd': 'move_reverse',
-            'kwargs': {'speed': speed}
+            'params': {'speed': speed}
         }
         self._relay_cmd(msg)
 
     def move_to_waypoint(self, lat, lng):
         msg = {
             'cmd': 'move_to_waypoint',
-            'kwargs': {
+            'params': {
                 'lat': lat,
                 'lng': lng
             }
@@ -148,7 +148,7 @@ class RemoteInterface(ApplicationSession):
     def set_trip(self, trip):
         msg = {
             'cmd': 'set_trip',
-            'kwargs': {
+            'params': {
                 'trip': trip
             }
         }
@@ -163,6 +163,6 @@ class RemoteInterface(ApplicationSession):
     def update_settings(self, settings_dict):
         msg = {
             'cmd': 'update_settings',
-            'kwargs': settings_dict,
+            'params': settings_dict,
         }
         self._relay_cmd(msg)

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AUV</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static "auv_control_pi/css/bootstrap.min.css" %}">
+  <link rel="stylesheet" href="{% static "auv_control_pi/css/style.css" %}">
+</head>
+<body>
+<div class="container">
+  <h3>AUV Control</h3>
+
+  {% verbatim %}
+  <div id="app">
+    Status: {{ status }}
+
+    <h2>Recieved Data:</h2>
+    {{ data }}
+
+    <div class="range-slider">
+      <h4>Left Motor</h4>
+      <input class="range-slider__range" type="range" min="-100" max="100" v-model="leftMotorSpeed">
+      <span class="range-slider__value">{{ leftMotorSpeed }}</span>
+    </div>
+
+    <div class="range-slider">
+      <h4>Right Motor</h4>
+      <input class="range-slider__range" type="range" min="-100" max="100" v-model="rightMotorSpeed">
+      <span class="range-slider__value">{{ rightMotorSpeed }}</span>
+    </div>
+
+
+  {% endverbatim %}
+</div>
+
+</body>
+
+<script src="{% static "auv_control_pi/js/vue.js" %}"></script>
+<script src="{% static "auv_control_pi/js/app.js" %}"></script>
+
+
+</html>

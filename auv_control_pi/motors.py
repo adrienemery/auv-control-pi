@@ -3,6 +3,7 @@ import logging
 
 import time
 
+from auv_control_pi.consumers import AsyncConsumer
 from .asgi import channel_layer, MOTOR_CONTROL_CHANNEL
 from navio.pwm import PWM
 
@@ -12,7 +13,10 @@ try:
 except ImportError:
     pi = False
 
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 T100 = 't100'
 SERVO = 'servo'
@@ -22,11 +26,11 @@ SERVO = 'servo'
 # For more info on the T100 controller specs see
 # https://www.bluerobotics.com/store/thrusters/besc-30-r1/
 T100_PWM_MAP = {
-    'max_forward': 1900,
+    'max_forward': int(1900 * 0.9),  # limit max mower to avoid burning out motor
     'min_forward': 1525,
     'stopped': 1500,
     'min_reverse': 1475,
-    'max_reverse': 1100,
+    'max_reverse': int(1100 * 0.9),  # limit max mower to avoid burning out motor
 }
 
 SERVO_PWM_MAP = T100_PWM_MAP
@@ -64,9 +68,14 @@ class Motor:
             MOTOR_CONTROL_CHANNEL,
             {
                 'cmd': 'add_motor',
-                'kwargs': {'name': self.name, 'channel': self.rc_channel}
+                'params': {'name': self.name, 'channel': self.rc_channel}
             }
         )
+
+    def __repr__(self):
+        return 'Motor(name={}, rc_channel={})'.format(self.name, self.rc_channel)
+
+    __str__ = __repr__
 
     @property
     def speed(self):
@@ -104,7 +113,7 @@ class Motor:
             MOTOR_CONTROL_CHANNEL,
             {
                 'cmd': 'set_duty_cycle',
-                'kwargs': {'name': self.name, 'duty_cycle_us': duty_cycle}
+                'params': {'name': self.name, 'duty_cycle_us': duty_cycle}
             }
         )
 
@@ -118,23 +127,24 @@ class Motor:
         self.speed = 0
 
 
-class MotorController:
+class MotorController(AsyncConsumer):
     """Manage each motor's initialization and updating duty cycle
     """
+    channels = [MOTOR_CONTROL_CHANNEL]
 
     def __init__(self):
         self.motors = {}
 
-    async def add_motor(self, name, channel):
-        logger.warning('Adding Motor(name={}, channel={})'.format(name, channel))
+    def add_motor(self, name, channel):
+        logger.info('Adding Motor(name={}, channel={})'.format(name, channel))
         # we need to add one to the channel since they are 0 indexed in code
         # but 1 indexed on the navio2 board
         self.motors[name] = {'pwm': PWM(channel - 1), 'duty_cycle': T100_PWM_MAP['stopped'] / 1000, 'initialized': False}
-        await curio.run_in_thread(self.initialize_motor, name)
+        self.initialize_motor(name)
 
-    async def set_duty_cycle(self, name, duty_cycle_us):
+    def set_duty_cycle(self, name, duty_cycle_us):
         duty_cycle_ms = duty_cycle_us / 1000  # convert to milliseconds
-        logger.warning('Setting {} motor duty cycle to {}'.format(name, duty_cycle_ms))
+        logger.info('Setting {} motor duty cycle to {}'.format(name, duty_cycle_ms))
         self.motors[name]['duty_cycle'] = duty_cycle_ms
 
     def initialize_motor(self, name):
@@ -145,32 +155,20 @@ class MotorController:
         pwm = self.motors[name]['pwm']
         if pi:
             pwm.initialize()
+
+            # setting the period is required before enabling the pwm channel
             pwm.set_period(PWM_FREQUENCY)
             pwm.enable()
+
+            # To arm the ESC a "stop signal" is sent and held for 1s (up to 2s works too)
+            # if you wait to long after the Arming process to send the fist command to the ESC,
+            # it will shut off and you will have to re-initialize
             pwm.set_duty_cycle(self.motors[name]['duty_cycle'])
             time.sleep(1)
             self.motors[name]['initialized'] = True
 
-    async def _read_commands(self):
-        """Check for incoming commands on the motor control channel"""
-        channels = [MOTOR_CONTROL_CHANNEL]
-        # read all messages off of channel
-        while True:
-            _, data = channel_layer.receive_many(channels)
-            if data:
-                logger.debug('Recieved data: {}'.format(data))
-                try:
-                    fnc = getattr(self, data.get('cmd'))
-                except AttributeError:
-                    pass
-                else:
-                    if fnc and callable(fnc):
-                        try:
-                            await fnc(**data.get('kwargs', {}))
-                        except Exception as exc:
-                            logger.error(exc)
-            else:
-                await curio.sleep(0.05)  # chill out for a bit
+    def turn_off_motor(self, name):
+        pass  # TODO
 
     async def _update(self):
         """Update the duty cycle for each registered motor"""
@@ -183,7 +181,7 @@ class MotorController:
 
     async def run(self):
         """Main entry point"""
-        logger.warning('Starting Motor Controller')
+        logger.info('Starting Motor Controller')
         await curio.spawn(self._update())
         await curio.spawn(self._read_commands())
 

@@ -16,6 +16,9 @@ Including another URLconf
 from django.conf.urls import url
 from django.contrib import admin
 
+from auv_control_pi.views import WebsocketView
+
 urlpatterns = [
     url(r'^admin/', admin.site.urls),
+    url(r'^ws/', WebsocketView.as_view())
 ]
