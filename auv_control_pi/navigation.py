@@ -105,7 +105,9 @@ class Navigator:
         self.arrived = False
         self.target_waypoint = waypoint
         self.target_heading = heading_to_point(self.current_location, waypoint)
-        self.position_control.set_limits(self.target_waypoint, self.target_heading)
+        # steer to align ahrs.heading and target heading. (always face the target way point when starting a new route?)
+        # then only set_limits
+        self.position_control.set_limits(self.current_location, self.target_waypoint)
 
     def start_trip(self, waypoints=None):
         if waypoints:
@@ -124,13 +126,20 @@ class Navigator:
         accel, gyro, mag = self.imu.getMotion9()
         self.ahrs.update(accel, gyro, mag)
         # self.current_location = self.gps
-        self.absolute_heading = self.ahrs.heading()
+        self.absolute_heading = self.ahrs.heading
         # now we want to get the current_heading aligned with the target heading. TODO
         # we want that absolute heading always aligned with the target heading until the zone changes,
         # then we dont want them aligned anymore
 
-        self.position_control.update(self.current_location)
-        if not self.position_control.in_green_zone:
+        self.position_control.update(self.current_location, self.absolute_heading)
+
+        # if self.in_green_zone:  # let it go, meaning: don't change the current heading
+        # in orange_from_green zone, compute a new heading once, in the red zone keep doing it.
+        # in orange zone from red zone (orange_from_red) let it go
+        # if going backward, may be a new heading would help
+        if self.position['zone'] == 'orange_from_green' or \
+           self.position['zone'] == 'red' or \
+           self.position['direction']['going_backward']:
             self.target_heading = self.position_control.new_heading
             # play with the motors to head to the new destination
 
@@ -331,7 +340,7 @@ class PositionControl:
                 if self.position['time']['in_orange_zone'] >= 5:  # we've been in orange zone for a while now
                     if self.position['zone'] == 'green':  # if previous zone is green
                         self.position['zone'] = 'orange_from_green'
-                    elif self.position['zone'] == 'red': # if previous zone is red
+                    elif self.position['zone'] == 'red':  # if previous zone is red
                         self.position['zone'] = 'orange_from_red'
                         # if we come from the red zone we want to keep that information
                         # because we don't want to change the heading again when we cross back to the orange zone
@@ -399,35 +408,42 @@ class PositionControl:
             # else self.alpha == self.delta1: -> threshold. 'in_the_red_zone' keeps its previous value
         # else "straight" do nothing
 
-    def check_current_zone(self, current_position=None):
-        self.drift_position(current_position)
+    def check_current_position_status(self, current_position):
+        self.check_drift_position(current_position)
         self.check_direction(current_position)
-        self.in_green_zone_check(current_position)
-        self.in_orange_zone_check(current_position)
-        self.in_red_zone_check(current_position)
+        self.check_green_zone(current_position)
+        self.check_orange_zone(current_position)
+        self.check_red_zone(current_position)
 
-    def compute_new_heading(self):
+    @property
+    def new_heading(self):
         # self.beta - self.alpha represent the bearing error due to drifting (caused by current or wind or whatever)
         # drift angle  needs to be considered for next route heading
         drift_error = abs(heading_modulo_180(self.beta - self.alpha))  # /!\ this is an angle not a heading
         if self.position['drift'] == 'right':
-            if self.position['zone'] == 'orange':  # coming from green zone
+            if self.position['zone'] == 'green' and self.position['direction'] == 'backward':
+                # whether we've always been in the green zone or coming from another one we need another heading
+                return heading_modulo_180(heading_to_point(self.A, self.C2) - drift_error)
+            if self.position['zone'] == 'orange_from_green':  # coming from green zone
                 # subtracting an angle (to a heading) is equivalent to adding a negative heading
-                self.new_heading = heading_modulo_180(heading_to_point(self.A, self.C1) - drift_error)
-                self.position['flag']['new_heading'] = True
+                self.position['zone'] = 'orange'
+                return heading_modulo_180(heading_to_point(self.A, self.C1) - drift_error)
             elif self.position['zone'] == 'red' and not self.position['flag']['danger_zone']:  # coming from orange zone
-                self.new_heading = heading_modulo_180(heading_to_point(self.A, self.D1) - drift_error)
+                return heading_modulo_180(heading_to_point(self.A, self.D1) - drift_error)
             # elif self.position['flag']['danger_zone'] >> do something special? or just stop everything? or do nothing?
             # elif self.position['zone'] == 'red&orange' and not  self.drift['flag']['danger_zone']: # in orange zone from red zone
                 # Do nothing (keep the in-red-zone updated heading)
             # elif self.position['zone'] == green:
                 # Hotsy Totsy
         elif self.position['drift'] == 'left':
-            if self.position['zone'] == 'orange':  # coming from green zone
-                self.new_heading = heading_modulo_180(heading_to_point(self.A, self.C2) + drift_error)
-                self.position['flag']['new_heading'] = True
+            if self.position['zone'] == 'green' and self.position['direction'] == 'backward':
+                # whether we've always been in the green zone or coming from another one we need another heading
+                return heading_modulo_180(heading_to_point(self.A, self.C1) - drift_error)
+            if self.position['zone'] == 'orange_from_green':  # coming from green zone
+                self.position['zone'] = 'orange'
+                return heading_modulo_180(heading_to_point(self.A, self.C2) + drift_error)
             elif self.position['zone'] == 'red' and not self.position['flag']['danger_zone']:  # coming from orange zone
-                self.new_heading = heading_modulo_180(heading_to_point(self.A, self.D2) + drift_error)
+                return heading_modulo_180(heading_to_point(self.A, self.D2) + drift_error)
             # elif self.position['flag']['danger_zone'] >> do something special? or just stop everything? or do nothing?
             # elif self.position['zone'] == 'red&orange' and not position.['flag']['danger_zone']: # in orange zone from red zone
                 # Do nothing (keep the in-red-zone updated heading)
@@ -438,15 +454,8 @@ class PositionControl:
         self.check_current_position_status(current_position)
         self.beta = heading_to_point(self.A, current_position)  # bearing between A and A' (drifting heading)
         self.A = current_position  # update current position
+        self.alpha = absolute_heading
 
-        # if self.in_green_zone:  # let it go, meaning: don't change the current heading
-        # in orange zone, compute a new heading once, in the red zone keep doing it.
-        # in orange zone from red zone (orange&red) let it go
-        # if going backward, may be a new heading would help
-        if self.position['zone'] == 'orange' and not self.position['flag']['new_heading'] or \
-           self.position['zone'] == 'red' or \
-           self.position['direction']['going_backward']:
-            self.compute_new_heading()
 
 
 # IDEAS:
