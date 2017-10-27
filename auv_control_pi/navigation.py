@@ -77,7 +77,7 @@ class Navigator:
     # target distance is the minimum distance we need to
     # arrive at in order to consider ourselves "arrived"
     # at the waypoint
-    TARGET_RADIUS = 60  # meters
+    TARGET_RADIUS = 60  # meters # TODO make this an adjustable config value on in database
 
     def __init__(self, gps, left_motor=None, right_motor=None, update_period=1):
         self._running = False
@@ -138,7 +138,7 @@ class Navigator:
 
         if self.target_waypoint and not self.arrived:
             # check if we have hit our target
-            if self.distance_to_target <= self.TARGET_DISTANCE:
+            if self.distance_to_target <= self.TARGET_RADIUS:
                 try:
                     # if there are waypoints qeued up keep going
                     self.move_to_waypoint(self.waypoints.popleft())
@@ -157,8 +157,11 @@ class Navigator:
     def steer(self):
         # calculate heading error to feed into PID
         # TODO test the handedness of this
+
+        # change the what follows, already checked in PositionControl
         heading_error = self.target_heading - self.ahrs.heading
-        if abs(heading_error > 5):  # TODO make this an adjustable config value on in database
+        if abs(heading_error > 5):  # TODO make this an adjustable config value on in database AND be careful with (BC1/2) radius!!!
+            # I'd be more into averaging values
             # take action to ajdust the speed of each motor to steer
             # in the direction to minimize the heading error
             # TODO
@@ -201,9 +204,8 @@ class PositionControl:
         self.gamma2 = None  # bearing from B to C2/D2
         self.delta1 = None  # bearing from A to C1 if drifting left or C2 if drifting right green/orange limit
         self.delta2 = None  # bearing from A to D1 if drifting left or D2 if drifting right orange/red limit
-        self.new_heading = None
-        self.green_zone_radius = target_radius/3 or 20  # TODO make this 1/3 - 2/3 zones look nicer
-        self.orange_zone_radius = target_radius or 60  # behind that radius, it's red zone
+        self.green_zone_radius = target_radius/3 or 20  # TODO make this an adjustable config value on in database
+        self.orange_zone_radius = target_radius or 60  # behind that radius, it's red zone # TODO make this an adjustable config value on in database
         self.position = {'drift': 'straight',
                          'direction': 'forward',
                          'zone': 'green',
@@ -212,11 +214,10 @@ class PositionControl:
                                   'in_red_zone': 0,
                                   'going_backward': 0},
                          'flag': {'danger_zone': False,
-                                  'going_backward': False,
-                                  'new_heading': False},
+                                  'going_backward': False}
                          }
 
-    def drift_position(self, current_position=None):
+    def check_drift_position(self, current_position):
         if distance_to_point(current_position, self.C1) < distance_to_point(current_position, self.C2):
             self.position['drift'] = 'left'
         elif distance_to_point(current_position, self.C2) < distance_to_point(current_position, self.C1):
@@ -224,7 +225,7 @@ class PositionControl:
         else:
             self.position['drift'] = 'straight'
 
-    async def check_direction(self, current_position=None):
+    async def check_direction(self, current_position):
         if self.position['drift'] == 'right':
             if distance_to_point(current_position, self.B) <= distance_to_point(self.A, self.B) or \
                distance_to_point(current_position, self.D2) <= distance_to_point(self.A, self.D2):
@@ -247,14 +248,14 @@ class PositionControl:
                 self.position['direction'] = 'forward'
                 self.position['time']['going_backward'] = 0
             else:
-                if self.position['time']['going_backward'] <= 5:
+                if self.position['time']['going_backward'] <= 5:  # TODO make this an adjustable config value on in database
                     self.position['time']['going_backward'] += 1
                     await time.sleep(1)
                 elif self.position['time']['going_backward'] > 5:
                     self.position['direction'] = 'backward'
                     self.position['time']['going_backward'] += 1
                     await time.sleep(1)
-                    if self.position['time']['going_backward'] > 15:
+                    if self.position['time']['going_backward'] > 15:  # TODO make this an adjustable config value on in database
                         self.position['flag']['going_backward'] = True
         else:
             if distance_to_point(current_position, self.B) <= distance_to_point(self.A, self.B):
@@ -280,26 +281,26 @@ class PositionControl:
         self.D2 = get_new_point(self.B, self.gamma2, self.orange_zone_radius)
 
     # When this method is being called A is the starting point
-    def set_limits(self, target=None, heading_to_target=None):
-        self.B = target or Point(lat=48.8566, lng=2.3522)
-        self.alpha = heading_to_target or heading_to_point(self.A, self.B)
+    def set_limits(self, current_position, target):
+        self.A = current_position
+        self.B = target
+        self.alpha = heading_to_point(self.A, self.B)
         self.gamma1 = heading_modulo_180(self.alpha - 90)
         self.gamma2 = heading_modulo_180(self.alpha + 90)
         self.green_orange_zone_limit_points()
         self.orange_red_zone_limit_points()
 
-    async def in_green_zone_check(self, current_position=None):
+    async def check_green_zone(self, current_position):
         if self.position['drift'] == 'right':
             self.delta1 = heading_to_point(current_position, self.C2)
             if self.delta1 > self.alpha:  # we just crossed the border from orange or just started our trip
                 self.position['time']['in_orange_zone'] = 0  # reset the timer from the orange zone (we could come from it)
-                if self.position['time']['in_green_zone'] < 5:  # it just happened, wait a moment before making it official
+                if self.position['time']['in_green_zone'] < 5:  # it just happened, wait a moment before making it official # TODO make this an adjustable config value on in database
                     self.position['time']['in_green_zone'] += 1
                     await time.sleep(1)
                 if self.position['time']['in_green_zone'] >= 5:  # We've been long enough in the zone to consider ourselves in
                     self.position['zone'] = 'green'
                     self.position['flag']['danger_zone'] = False
-                    self.position['flag']['new_heading'] = False
             # elif self.delta1 < self.alpha: We are in orange zone, let 'in_orange_zone_check' method take care of it
             # else self.alpha == self.delta: -> threshold. 'in_the_green_zone' keeps its previous value
 
@@ -317,7 +318,7 @@ class PositionControl:
             # else self.alpha == self.delta1: -> threshold. 'in_the_green_zone' keeps its previous value
         # else "straight" do nothing
 
-    async def in_orange_zone_check(self, current_position=None):
+    async def check_orange_zone(self, current_position):
         if self.position['drift'] == 'right':
             self.delta1 = heading_to_point(current_position, self.C2)
             self.delta2 = heading_to_point(current_position, self.D2)
@@ -329,9 +330,9 @@ class PositionControl:
                     await time.sleep(1)
                 if self.position['time']['in_orange_zone'] >= 5:  # we've been in orange zone for a while now
                     if self.position['zone'] == 'green':  # if previous zone is green
-                        self.position['zone'] = 'orange'
+                        self.position['zone'] = 'orange_from_green'
                     elif self.position['zone'] == 'red': # if previous zone is red
-                        self.position['zone'] = 'red&orange'
+                        self.position['zone'] = 'orange_from_red'
                         # if we come from the red zone we want to keep that information
                         # because we don't want to change the heading again when we cross back to the orange zone
 
@@ -352,16 +353,16 @@ class PositionControl:
                 if self.position['time']['in_orange_zone'] >= 5:  # we've been in orange zone for a while now
                     # We want a different behaviour whether we come from the green zone or the red zone
                     if self.position['zone'] == 'green':  # if previous zone is green
-                        self.position['zone'] = 'orange'
+                        self.position['zone'] = 'orange_from_green'
                     elif self.position['zone'] == 'red':  # if previous zone is red
-                        self.position['zone'] = 'red&orange'
+                        self.position['zone'] = 'orange_from_red'
                 # elif other cases, means not in orange zone but either in green or red zone.
                 # Let those colour_zone_check methods handle it
             # elif self.alpha == self.delta1: -> threshold. 'in_the_green_zone' keeps its previous value
             # elif self.alpha == self.delta2: -> threshold. 'in_the_red_zone' keeps its previous value
         # else "straight" do nothing
 
-    async def in_red_zone_check(self, current_position=None):
+    async def check_red_zone(self, current_position):
         # if we're in the red zone it means that we've gone through the orange zone.
         # Therefore we've applied new headings so alpha is not the same anymore
         # TODO: do the drawings and figure it out -> alpha should not be the same anymore (doesnt change the logic tho?)
@@ -376,7 +377,7 @@ class PositionControl:
                     self.position['zone'] = 'red'
                     self.position['time']['in_red_zone'] += 1  # continue checking time in red zone
                     await time.sleep(1)
-                if self.position['time']['in_red_zone'] > 180:
+                if self.position['time']['in_red_zone'] > 180: # TODO make this an adjustable config value on in database
                     self.position['flag']['danger_zone'] = True
             # elif self.delta1 > self.alpha: We are in orange zone, let 'in_orange_zone_check' method take care of it
             # else self.alpha == self.delta: -> threshold. 'in_the_green_zone' keeps its previous value
@@ -433,8 +434,8 @@ class PositionControl:
             # elif elf.position['zone'] == 'green:
                 # Hotsy Totsy
 
-    def update(self, current_position=None):
-        self.check_current_zone(current_position)
+    def update(self, current_position, absolute_heading):
+        self.check_current_position_status(current_position)
         self.beta = heading_to_point(self.A, current_position)  # bearing between A and A' (drifting heading)
         self.A = current_position  # update current position
 
