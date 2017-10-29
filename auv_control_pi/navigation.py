@@ -17,9 +17,12 @@ Point = namedtuple('Point', ['lat', 'lng'])
 def heading_to_point(point_a, point_b):
     """
     Calculate heading between two points
-    :param point_a: Coordinate Point(lat,lng) of a 1st point
-    :param point_b: Coordinate Point(lat,lng) of a 2nd point
-    :return: Heading from A to B
+    Args:
+        point_a: Coordinate Point(lat,lng) of a 1st point
+        point_b: Coordinate Point(lat,lng) of a 2nd point
+
+    Returns: Heading from A to B
+
     """
     result = great_distance(start_latitude=point_a.lat,
                             start_longitude=point_a.lng,
@@ -31,9 +34,12 @@ def heading_to_point(point_a, point_b):
 def distance_to_point(point_a, point_b):
     """
     Calculate distance between to points
-    :param point_a: Coordinate Point(lat,lng) of a 1st point
-    :param point_b: Coordinate Point(lat,lng) of a 2nd point
-    :return: Distance between A and B
+    Args:
+        point_a: Coordinate Point(lat,lng) of a 1st point
+        point_b: Coordinate Point(lat,lng) of a 2nd point
+
+    Returns: Distance between A and B
+
     """
     result = great_distance(start_latitude=point_a.lat,
                             start_longitude=point_a.lng,
@@ -45,15 +51,19 @@ def distance_to_point(point_a, point_b):
 def get_new_point(point_a, bearing, distance):
     """
     Calculate the coordinates of a point, given a starting point a bearing and a distance
-    :param point_a: reference point coordinates Point(lat,lng)
-    :param bearing: bearing from reference point to new point
-    :param distance: distance between the reference point and the new point
-    :return: new point coordinates Point(lat,lng)
-    """
-    f = 1 / 298.277223563  # flattening of the ellipsoid
-    a = 6378137.0  # length of the semi - major axis(radius at equator)
+    Args:
+        point_a: Reference point coordinates Point(lat,lng)
+        bearing: Bearing from reference point to new point
+        distance: Distance between the reference point and the new point
 
-    new_point_lat, new_point_lng, _ = vinc_pt(f, a, point_a.lat, point_a.lng, bearing, distance)
+    Returns: new point coordinates Point(lat,lng)
+
+    """
+    rmajor = 6378137.0  # radius of earth's major axis (radius from the center of the earth to the equator)
+    rminor = 6356752.3142  # radius of earth's minor axis (radius from the center of the earth to the North/South pole)
+    f = (rmajor - rminor) / rmajor  # flattening of the ellipsoid
+
+    new_point_lat, new_point_lng, _ = vinc_pt(f, rmajor, point_a.lat, point_a.lng, bearing, distance)
     new_point = Point(lat=new_point_lat, lng=new_point_lng)
     return new_point
 
@@ -61,8 +71,10 @@ def get_new_point(point_a, bearing, distance):
 def heading_modulo_180(heading):
     """
     Corrects heading value to range between [-180:180]
-    :param heading: a heading with potential value ranges outside of [-180:180]
-    :return: corrected heading which value ranges between [-180:180]
+    Args:
+        heading: Heading with potential value ranges outside of [-180:180]
+
+    Returns: Corrected heading which value ranges between [-180:180]
     """
     while heading > 180 or heading < -180:
         if heading > 180:
