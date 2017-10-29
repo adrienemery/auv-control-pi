@@ -10,7 +10,7 @@ from django.conf import settings
 
 from django.utils import timezone
 
-from auv_control_pi.consumers import AsyncConsumer
+from auv_control_pi.consumers import AsyncRPCConsumer
 from .asgi import channel_layer, AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL
 from .navigation import Point, Trip
 from .models import Configuration
@@ -25,10 +25,10 @@ else:
 logger = logging.getLogger(__name__)
 
 
-class Mothership(AsyncConsumer):
+class Mothership:
     """Main entry point for controling the Mothership and AUV
     """
-    channels = [AUV_SEND_CHANNEL]
+    AUV_GPS_REPLY_CHANNEL = 'auv.gps.reply'  # channel to recieve data from gps group
 
     MANUAL = 'manual'
     LOITER = 'loiter'
@@ -37,7 +37,7 @@ class Mothership(AsyncConsumer):
 
     def __init__(self):
         self.lat = 0.0
-        self.lng = 0.0
+        self.lon = 0.0
         self.heading = 0
         self.speed = 0
         self.water_temperature = 0
@@ -128,8 +128,9 @@ class Mothership(AsyncConsumer):
 
     async def run(self):
         logger.info('Starting Mothership')
+        Group('gps.update').add(self.AUV_GPS_REPLY_CHANNEL)
         await curio.spawn(self._update())
-        await curio.spawn(self._read_commands())
+        await curio.spawn(self._read_channels())
         await curio.run_in_thread(self._navigator.run)
 
     async def _update(self):
@@ -137,7 +138,7 @@ class Mothership(AsyncConsumer):
         while True:
             payload = {
                 'lat': self.lat,
-                'lng': self.lng,
+                'lon': self.lon,
                 'heading': self.heading,
                 'left_motor_speed': self.left_motor.speed,
                 'left_motor_duty_cycle': self.left_motor.duty_cycle,
@@ -151,5 +152,29 @@ class Mothership(AsyncConsumer):
             Group(AUV_UPDATE_CHANNEL).send({'text': json.dumps(payload)})
             logger.debug('Broadcast udpate')
             await curio.sleep(1 / 10)
+
+    async def _read_channels(self):
+        """Check for incoming commands on the motor control channel"""
+        # read all messages off of channel
+        while True:
+            channel, data = channel_layer.receive_many([AUV_SEND_CHANNEL, self.AUV_GPS_REPLY_CHANNEL])
+            if channel == AUV_SEND_CHANNEL and data:
+                logging.debug('Recieved data: {}'.format(data))
+                try:
+                    fnc = getattr(self, data.get('cmd'))
+                except AttributeError:
+                    pass
+                else:
+                    if fnc and callable(fnc):
+                        try:
+                            await curio.run_in_thread(fnc, **data.get('params', {}))
+                        except Exception as exc:
+                            logging.error(exc)
+            elif channel == self.AUV_GPS_REPLY_CHANNEL and data:
+                self.lat = data.get('lat')
+                self.lon = data.get('lon')
+
+            else:
+                await curio.sleep(0.05)  # chill out for a bit
 
 

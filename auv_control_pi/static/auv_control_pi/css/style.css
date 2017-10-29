@@ -21,6 +21,7 @@ body {
   width: 100%;
 }
 
+
 .range-slider__range {
   -webkit-appearance: none;
   width: calc(100% - (73px));

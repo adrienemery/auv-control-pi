@@ -5,7 +5,7 @@ import time
 
 from channels import Channel
 
-from auv_control_pi.consumers import AsyncConsumer
+from auv_control_pi.consumers import AsyncRPCConsumer
 from .asgi import channel_layer, MOTOR_CONTROL_CHANNEL
 from navio.pwm import PWM
 
@@ -129,7 +129,7 @@ class Motor:
         self.speed = 0
 
 
-class MotorController(AsyncConsumer):
+class MotorController(AsyncRPCConsumer):
     """Manage each motor's initialization and updating duty cycle
     """
     channels = [MOTOR_CONTROL_CHANNEL]

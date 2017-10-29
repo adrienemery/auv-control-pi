@@ -30,7 +30,7 @@ def ws_disconnect(message):
     pass
 
 
-class AsyncConsumer:
+class AsyncRPCConsumer:
     channels = []
 
     async def _read_commands(self):

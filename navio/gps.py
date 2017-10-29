@@ -1,15 +1,22 @@
+import json
 import logging
 import copy
+
+import curio
+import time
+
 try:
     import spidev
-    raspi = True
+    pi = True
 except ImportError:
-    raspi = False
+    pi = False
     logging.warning('Not running on Pi. You will not have access to GPS.')
 import math
 import queue
 import struct
 import navio.util
+
+from channels import Group
 
 
 waiting_header = 0
@@ -182,7 +189,7 @@ class NavPosllhMsg:
         return '{}\n{}\n{}\n{}\n{}\n{}\n{}'.format(itow, lon, lat, heightEll, heightSea, horAcc, verAcc)
 
 
-if raspi:
+if pi:
     ubl = U_blox()
     for ind in range(0, 10):
         ubl.enable_posllh()
@@ -193,8 +200,8 @@ else:
 class GPS:
 
     def __init__(self):
-        self.lat = None
-        self.lon = None
+        self.lat = 49.2827
+        self.lon = -123.1207
         self.height_ellipsoid = None
         self.height_sea = None
         self.horizontal_accruacy = None
@@ -213,7 +220,8 @@ class GPS:
             self.vertiacl_accruracy = msg.verAcc
 
     def update(self):
-        if raspi:
+        """"""
+        if pi:
             buffer = ubl.bus.xfer2([100])
             for byt in buffer:
                 ubl.scan_ubx(byt)
@@ -221,12 +229,29 @@ class GPS:
                     msg = ubl.parse_ubx()
                     self._update(msg)
 
-    def run(self):
-        while True:
-            self.update()
+        time.sleep(0.1)  # chill for a bit
 
+    async def broadcast(self):
+        """Broadcast gps data to group"""
+        Group('gps.update').send({
+                'lat': self.lat,
+                'lon': self.lon,
+                'heigh_sea': self.height_sea,
+                'height_ellipsoid': self.height_ellipsoid,
+                'horizontal_accruacy': self.horizontal_accruacy,
+                'vertiacl_accruracy': self.vertiacl_accruracy,
+            }
+        )
+        await curio.sleep(1)
+
+    async def run(self):
+        logging.warning('Starting GPS loop')
+        while True:
+            await curio.run_in_thread(self.update)
+            await self.broadcast()
 
 if __name__ == '__main__':
-    navio.util.check_apm()
+    if pi:
+        navio.util.check_apm()
     gps = GPS()
-    gps.run()
+    curio.run(gps.run())

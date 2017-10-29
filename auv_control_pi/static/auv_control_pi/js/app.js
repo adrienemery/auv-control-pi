@@ -8,6 +8,9 @@ var vm = new Vue({
         status: 'disconnected',
         leftMotorSpeed: 0,
         rightMotorSpeed: 0,
+        forwardSpeed: 0,
+        test: 10,
+        initialized: false,
     },
     created: function () {
         // created hook
@@ -23,12 +26,15 @@ var vm = new Vue({
     },
     watch: {
         leftMotorSpeed: function (newSpeed) {
-            this.setLeftMotorSpeed(newSpeed);
+            if (this.initialized && this.leftMotorSpeed != this.data.left_motor_speed) {
+                this.setLeftMotorSpeed(newSpeed);
+            }
         },
         rightMotorSpeed: function (newSpeed) {
-            this.setRightMotorSpeed(newSpeed);
+            if (this.initialized && this.rightMotorSpeed != this.data.right_motor_speed) {
+                this.setRightMotorSpeed(newSpeed);
+            }
         },
-
     }
 
 });
@@ -41,6 +47,11 @@ ws.onopen = function () {
 ws.onmessage = function (evt) {
     // message recieved
     vm.data = JSON.parse(evt.data);
+    if (!vm.initialized) {
+        vm.leftMotorSpeed = vm.data.left_motor_speed;
+        vm.rightMotorSpeed = vm.data.right_motor_speed;
+        vm.initialized = true;
+    }
 };
 
 ws.onclose = function () {
