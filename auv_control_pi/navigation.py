@@ -1,5 +1,5 @@
 import logging
-import time
+import curio
 
 from collections import deque, namedtuple
 from pygc import great_distance, great_circle
@@ -131,7 +131,7 @@ class Navigator:
         self.waypoints.appendleft(self.target_waypoint)
         self.target_waypoint = None
 
-    def update(self):
+    async def update(self):
         """
         Update the current position and heading
         """
@@ -143,7 +143,7 @@ class Navigator:
         # we want that absolute heading always aligned with the target heading until the zone changes,
         # then we dont want them aligned anymore
 
-        self.position_control.update(self.current_location, self.absolute_heading)
+        await self.position_control.update(self.current_location, self.absolute_heading)
 
         # if self.in_green_zone:  # let it go, meaning: don't change the current heading
         # in orange_from_green zone, compute a new heading once, in the red zone keep doing it.
@@ -179,7 +179,6 @@ class Navigator:
         # calculate heading error to feed into PID
         # TODO test the handedness of this
 
-        # change the what follows, already checked in PositionControl
         heading_error = self.target_heading - self.ahrs.heading
         if abs(heading_error > 5):  # TODO make this an adjustable config value on in database AND be careful with (BC1/2) radius!!!
             # I'd be more into averaging values
@@ -195,12 +194,12 @@ class Navigator:
         else:
             return None
 
-    def run(self):
+    async def run(self):
         logger.info('Starting simulation')
         self._running = True
         while self._running:
-            self.update()
-            time.sleep(self.update_period)
+            await curio.spawn(self._update())
+            await curio.sleep(self.update_period)
 
 
 class Trip:
@@ -420,7 +419,7 @@ class PositionControl:
             # else self.alpha == self.delta1: -> threshold. 'in_the_red_zone' keeps its previous value
         # else "straight" do nothing
 
-    def check_current_position_status(self, current_position):
+    async def check_current_position_status(self, current_position):
         self.check_drift_position(current_position)
         self.check_direction(current_position)
         self.check_green_zone(current_position)
@@ -462,8 +461,8 @@ class PositionControl:
             # elif elf.position['zone'] == 'green:
                 # Hotsy Totsy
 
-    def update(self, current_position, absolute_heading):
-        self.check_current_position_status(current_position)
+    async def update(self, current_position, absolute_heading):
+        await self.check_current_position_status(current_position)
         self.beta = heading_to_point(self.A, current_position)  # bearing between A and A' (drifting heading)
         self.A = current_position  # update current position
         self.alpha = absolute_heading
