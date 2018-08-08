@@ -21,8 +21,8 @@ class Mothership(ApplicationSession):
         self.speed = 0
         self.command_buffer = deque()
         config = Configuration.get_solo()
-        self.left_motor = Motor(name='left', wamp_session=self, rc_channel=config.left_motor_channel)
-        self.right_motor = Motor(name='right', wamp_session=self, rc_channel=config.right_motor_channel)
+        self.left_motor = Motor(name='left', rc_channel=config.left_motor_channel)
+        self.right_motor = Motor(name='right', rc_channel=config.right_motor_channel)
         self.update_frequency = 1
 
     def onConnect(self):
@@ -51,7 +51,7 @@ class Mothership(ApplicationSession):
         self.left_motor.speed = int(speed)
 
     def set_right_motor_speed(self, speed):
-        self.left_motor.speed = int(speed)
+        self.right_motor.speed = int(speed)
 
     def move_right(self, speed=None):
         logger.info('Move right with speed {}'.format(speed))
@@ -92,9 +92,9 @@ class Mothership(ApplicationSession):
         while True:
             payload = {
                 'left_motor_speed': self.left_motor.speed,
-                'left_motor_duty_cycle': self.left_motor.duty_cycle,
+                'left_motor_duty_cycle': self.left_motor.duty_cycle_us,
                 'right_motor_speed': self.right_motor.speed,
-                'right_motor_duty_cycle': self.right_motor.duty_cycle,
+                'right_motor_duty_cycle': self.right_motor.duty_cycle_us,
                 'timestamp': timezone.now().isoformat()
             }
             self.publish('auv.update', payload)

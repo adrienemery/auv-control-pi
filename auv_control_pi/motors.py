@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+from threading import Thread
 
 from autobahn.asyncio import ApplicationSession
 from navio.pwm import PWM
@@ -49,7 +50,7 @@ def _calculate_value_in_range(min_val, max_val, percentage):
 class Motor:
     """An interface class to allow simple acces to motor functions"""
 
-    def __init__(self, name, rc_channel, wamp_session=None, motor_type=T100):
+    def __init__(self, name, rc_channel, motor_type=T100):
         self.name = name
         self.rc_channel = rc_channel
         if motor_type == T100:
@@ -60,17 +61,39 @@ class Motor:
             raise ValueError('Unknown motor_type')
 
         self._speed = 0
-        self.duty_cycle = self.pwm_map['stopped']
-        if wamp_session is None:
-            # TODO use wampy or other means to make rpc calls
-            pass
-        else:
-            self.wamp_session = wamp_session
+        self.duty_cycle_us = self.pwm_map['stopped']
+        self.duty_cycle_ms = self.duty_cycle_us / 1000
+
+        self.pwm = PWM(self.rc_channel - 1)
         self.initialized = False
+        Thread(target=self._update).start()
 
     def initialize(self):
-        self.wamp_session.call('motor_control.add_motor', self.name, self.rc_channel)
+        """Must call to initialize the motor"""
+        Thread(target=self._initialize).start()
+
+    def _initialize(self):
+        if pi:
+            self.pwm.initialize()
+
+            # setting the period is required before enabling the pwm channel
+            self.pwm.set_period(PWM_FREQUENCY)
+            self.pwm.enable()
+
+            # To arm the ESC a "stop signal" is sent and held for 1s (up to 2s works too)
+            # if you wait too long after the arming process to send the fist command to the ESC,
+            # it will shut off and you will have to re-initialize
+            self.stop()
+            self.pwm.set_duty_cycle(self.duty_cycle_ms)
+            time.sleep(1)
+        logger.info('{} motor initialized'.format(self.name))
         self.initialized = True
+
+    def _update(self):
+        while True:
+            if pi and self.initialized:
+                self.pwm.set_duty_cycle(self.duty_cycle_ms)
+            time.sleep(0.1)
 
     @property
     def speed(self):
@@ -102,11 +125,9 @@ class Motor:
             )
 
         self._speed = value
-        self.duty_cycle = duty_cycle
-
-        # update the motor conroller with the calculated duty cycle in microseconds
-        if self.initialized:
-            self.wamp_session.call('motor_control.set_duty_cycle', self.name, duty_cycle)
+        self.duty_cycle_us = duty_cycle / 1000
+        self.duty_cycle_ms = self.duty_cycle_us / 1000  # convert to milliseconds
+        logger.info('{} motor speed updated to ({} %, {} us)'.format(self.name, value, self.duty_cycle_us))
 
     def forward(self, speed):
         self.speed = abs(speed)
@@ -121,78 +142,3 @@ class Motor:
         return 'Motor(name={}, rc_channel={})'.format(self.name, self.rc_channel)
 
     __str__ = __repr__
-
-
-class MotorController(ApplicationSession):
-    """Manage each motor's initialization and updating duty cycle
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.motors = {}
-
-    def onConnect(self):
-        logger.info('Connecting to {} as {}'.format(self.config.realm, 'motor_control'))
-        self.join(realm=self.config.realm)
-
-    def onJoin(self, details):
-        """Register functions for access via RPC and start update loops"""
-        logger.info("Joined Crossbar Session")
-
-        self.register(self.add_motor, 'motor_control.add_motor')
-        self.register(self.set_duty_cycle, 'motor_control.set_duty_cycle')
-
-        # create subtasks
-        loop = asyncio.get_event_loop()
-        loop.create_task(self._update())
-
-    def add_motor(self, name, channel):
-        logger.info('Adding Motor(name={}, channel={})'.format(name, channel))
-        # we need to add one to the channel since they are 0 indexed in code
-        # but 1 indexed on the navio2 board
-        self.motors[name] = {'pwm': PWM(channel - 1), 'duty_cycle': T100_PWM_MAP['stopped'] / 1000, 'initialized': False}
-        self._initialize_motor(name)
-
-    def set_duty_cycle(self, name, duty_cycle_us):
-        duty_cycle_ms = duty_cycle_us / 1000  # convert to milliseconds
-        logger.info('Setting {} motor duty cycle to {}'.format(name, duty_cycle_ms))
-        self.motors[name]['duty_cycle'] = duty_cycle_ms
-
-    def _initialize_motor(self, name):
-        """Initialization sequence for each new motor
-
-        This is a blocking method and should be run in a thread or proceess.
-        """
-        pwm = self.motors[name]['pwm']
-        if pi:
-            pwm.initialize()
-
-            # setting the period is required before enabling the pwm channel
-            pwm.set_period(PWM_FREQUENCY)
-            pwm.enable()
-
-            # To arm the ESC a "stop signal" is sent and held for 1s (up to 2s works too)
-            # if you wait too long after the arming process to send the fist command to the ESC,
-            # it will shut off and you will have to re-initialize
-            pwm.set_duty_cycle(self.motors[name]['duty_cycle'])
-            time.sleep(1)
-            self.motors[name]['initialized'] = True
-
-    def turn_off_motor(self, name):
-        pass  # TODO
-
-    async def _update(self):
-        """Update the duty cycle for each registered motor"""
-        while True:
-            for motor_name, data in self.motors.items():
-                if pi:
-                    if data['initialized']:
-                        loop = asyncio.get_event_loop()
-                        await loop.run_in_executor(data['pwm'].set_duty_cycle, data['duty_cycle'])
-            await asyncio.sleep(0.05)
-
-
-motor_controller = MotorController()
-
-if __name__ == '__main__':
-    motor_controller.run()
