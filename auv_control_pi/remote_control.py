@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from autobahn.asyncio.wamp import ApplicationSession
+from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
 from channels import Channel
 
 from .asgi import channel_layer, AUV_SEND_CHANNEL
@@ -34,10 +34,6 @@ class RemoteInterface(ApplicationSession):
             err_msg = 'speed must be in range -100 <= speed <= 100, got {}'.format(speed)
             raise ValueError(err_msg)
 
-    def onConnect(self):
-        logger.info('Connecting to {} as {}'.format(self.config.realm, 'auv'))
-        self.join(realm=self.config.realm, authmethods=['ticket'], authid='auv')
-
     def onChallenge(self, challenge):
         """Handle authentication challenge"""
         if challenge.method == 'ticket':
@@ -47,19 +43,25 @@ class RemoteInterface(ApplicationSession):
         else:
             raise Exception("Invalid authmethod {}".format(challenge.method))
 
+    def onConnect(self):
+        logger.info('Connecting to {} as {}'.format(self.config.realm, 'auv'))
+        self.join(realm=self.config.realm, authmethods=['ticket', 'anonymous'], authid='auv')
+
     async def onJoin(self, details):
         """Register functions for access via RPC and start update loops"""
         logger.info("Joined Crossbar Session")
 
-        await self.register(self.move_right, 'com.auv.move_right')
-        await self.register(self.move_left, 'com.auv.move_left')
-        await self.register(self.move_forward, 'com.auv.move_forward')
-        await self.register(self.move_reverse, 'com.auv.move_reverse')
-        await self.register(self.stop, 'com.auv.stop')
-        await self.register(self.move_to_waypoint, 'com.auv.move_to_waypoint')
-        await self.register(self.start_trip, 'com.auv.start_trip')
-        await self.register(self.set_trip, 'com.auv.set_trip')
-        await self.register(self.update_settings, 'com.auv.update_settings')
+        await self.register(self.move_right, 'auv.move_right')
+        await self.register(self.move_left, 'auv.move_left')
+        await self.register(self.set_left_motor_speed, 'auv.set_left_motor_speed')
+        await self.register(self.set_right_motor_speed, 'auv.set_right_motor_speed')
+        await self.register(self.move_forward, 'auv.move_forward')
+        await self.register(self.move_reverse, 'auv.move_reverse')
+        await self.register(self.stop, 'auv.stop')
+        await self.register(self.move_to_waypoint, 'auv.move_to_waypoint')
+        await self.register(self.start_trip, 'auv.start_trip')
+        await self.register(self.set_trip, 'auv.set_trip')
+        await self.register(self.update_settings, 'auv.update_settings')
 
         # create subtasks
         loop = asyncio.get_event_loop()
@@ -70,7 +72,7 @@ class RemoteInterface(ApplicationSession):
     async def _connected(self):
         """Let everyone know that we have connected"""
         config = Configuration.get_solo()
-        self.publish('com.auv.connected', str(config.auv_id))
+        self.publish('auv.connected', str(config.auv_id))
 
     async def update(self):
         """Broadcast updates whenever recieved on update channel"""
@@ -83,7 +85,7 @@ class RemoteInterface(ApplicationSession):
                     config = Configuration.get_solo()
                     data['auv_id'] = str(config.auv_id)
                     logger.debug('Auv Update Data: {}'.format(data))
-                    self.publish('com.auv.update', data)
+                    self.publish('auv.update', data)
                 else:
                     break
 
@@ -91,8 +93,32 @@ class RemoteInterface(ApplicationSession):
         """Broadcast heartbeat at 1Hz"""
         while True:
             await asyncio.sleep(1)
-            self.publish('com.auv.heartbeat', 'ok')
+            self.publish('auv.heartbeat', 'ok')
             logger.debug('heartbeat')
+
+    def set_left_motor_speed(self, speed=None):
+        speed = self.DEFAULT_TURN_SPEED or speed
+        self._check_speed(speed)
+        msg = {
+            'cmd': 'set_motor_speed',
+            'params': {
+                'motor_side': 'left',
+                'speed': speed
+            }
+        }
+        self._relay_cmd(msg)
+
+    def set_right_motor_speed(self, speed=None):
+        speed = self.DEFAULT_TURN_SPEED or speed
+        self._check_speed(speed)
+        msg = {
+            'cmd': 'set_motor_speed',
+            'params': {
+                'motor_side': 'right',
+                'speed': speed
+            }
+        }
+        self._relay_cmd(msg)
 
     def move_right(self, speed=None):
         speed = self.DEFAULT_TURN_SPEED or speed
@@ -167,3 +193,8 @@ class RemoteInterface(ApplicationSession):
             'params': settings_dict,
         }
         self._relay_cmd(msg)
+
+
+if __name__ == '__main__':
+    runner = ApplicationRunner(url='ws://localhost:8000/ws', realm='realm1')
+    runner.run(RemoteInterface)

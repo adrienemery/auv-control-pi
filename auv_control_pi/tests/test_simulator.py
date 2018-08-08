@@ -2,14 +2,14 @@ import pytest
 
 from pygc import great_circle
 
-from ..simulator import Navitgator, GPS, Motor, Compass
+from ..simulator import Navitgator, GPS, Motor, AHRS
 from ..navigation import Point, distance_to_point
 
 
 @pytest.fixture
 def sim():
     starting_point = Point(50, 120)
-    return Navitgator(gps=GPS(), compass=Compass(),
+    return Navitgator(gps=GPS(),
                       current_location=starting_point,
                       update_period=1)
 

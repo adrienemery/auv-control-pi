@@ -8,3 +8,4 @@ def test_ahrs():
     mag = [-16.566, 42.852, -50.302]
     ahrs.update(accel, gyro, mag)
     # TODO assert something
+

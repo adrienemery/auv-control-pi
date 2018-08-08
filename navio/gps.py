@@ -220,7 +220,6 @@ class GPS:
             self.vertiacl_accruracy = msg.verAcc
 
     def update(self):
-        """"""
         if pi:
             buffer = ubl.bus.xfer2([100])
             for byt in buffer:

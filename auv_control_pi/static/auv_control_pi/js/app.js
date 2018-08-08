@@ -1,4 +1,4 @@
-var ws = new WebSocket("ws://127.0.0.1:8000/ws");
+var ws = new WebSocket("ws://192.168.0.21:9000/ws");
 
 
 var vm = new Vue({

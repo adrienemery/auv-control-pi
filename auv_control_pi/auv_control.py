@@ -1,67 +1,57 @@
-import json
-
-import curio
+import asyncio
 import logging
 
 from collections import deque
-
-from channels import Group
-from django.conf import settings
-
 from django.utils import timezone
 
-from auv_control_pi.consumers import AsyncRPCConsumer
-from .asgi import channel_layer, AUV_SEND_CHANNEL, AUV_UPDATE_CHANNEL
-from .navigation import Point, Trip
+from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
 from .models import Configuration
 from .motors import Motor
-
-if settings.SIMULATE:
-    from .simulator import Navitgator, GPS
-else:
-    from .navigation import Navigator
 
 
 logger = logging.getLogger(__name__)
 
 
-class Mothership:
+class Mothership(ApplicationSession):
     """Main entry point for controling the Mothership and AUV
     """
-    AUV_GPS_REPLY_CHANNEL = 'auv.gps.reply'  # channel to recieve data from gps group
 
-    MANUAL = 'manual'
-    LOITER = 'loiter'
-    TRIP = 'trip'
-    MOVE_TO_WAYPOINT = 'move_to_waypoint'
-
-    def __init__(self):
-        self.lat = 0.0
-        self.lon = 0.0
-        self.heading = 0
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.speed = 0
-        self.water_temperature = 0
         self.command_buffer = deque()
         config = Configuration.get_solo()
-        self.left_motor = Motor(name='left', rc_channel=config.left_motor_channel)
-        self.right_motor = Motor(name='right', rc_channel=config.right_motor_channel)
-        self.mode = self.MANUAL
-        self.waypoints = deque()
+        self.left_motor = Motor(name='left', wamp_session=self, rc_channel=config.left_motor_channel)
+        self.right_motor = Motor(name='right', wamp_session=self, rc_channel=config.right_motor_channel)
         self.update_frequency = 1
-        self.trip = None
-        if settings.SIMULATE:
-            self._navigator = Navitgator(right_motor=self.right_motor,
-                                         left_motor=self.left_motor)
-        else:
-            self._navigator = Navigator(right_motor=self.right_motor,
-                                        left_motor=self.left_motor)
 
-    def set_motor_speed(self, motor_side, speed):
-        try:
-            motor = getattr(self, '{}_motor'.format(motor_side))
-            motor.speed = int(speed)
-        except AttributeError:
-            logger.warning('Motor "{}" does not exist'.format(motor_side))
+    def onConnect(self):
+        logger.info('Connecting to {} as {}'.format(self.config.realm, 'auv'))
+        self.join(realm=self.config.realm, authmethods=['anonymous'], authid='auv')
+
+    def onJoin(self, details):
+        """Register functions for access via RPC and start update loops"""
+        logger.info("Joined Crossbar Session")
+        self.left_motor.initialize()
+        self.right_motor.initialize()
+
+        self.register(self.move_right, 'auv.move_right')
+        self.register(self.move_left, 'auv.move_left')
+        self.register(self.set_left_motor_speed, 'auv.set_left_motor_speed')
+        self.register(self.set_right_motor_speed, 'auv.set_right_motor_speed')
+        self.register(self.move_forward, 'auv.move_forward')
+        self.register(self.move_reverse, 'auv.move_reverse')
+        self.register(self.stop, 'auv.stop')
+
+        # create subtasks
+        loop = asyncio.get_event_loop()
+        loop.create_task(self._update())
+
+    def set_left_motor_speed(self, speed):
+        self.left_motor.speed = int(speed)
+
+    def set_right_motor_speed(self, speed):
+        self.left_motor.speed = int(speed)
 
     def move_right(self, speed=None):
         logger.info('Move right with speed {}'.format(speed))
@@ -97,84 +87,21 @@ class Mothership:
         self.left_motor.stop()
         self.right_motor.stop()
 
-    def move_to_waypoint(self, lat, lng):
-        self._navigator.move_to_waypoint(Point(lat=lat, lng=lng))
-        self.mode = self.MOVE_TO_WAYPOINT
-        logger.info('Moving to waypoint: ({}, {})'.format(lat, lng))
-
-    def start_trip(self):
-        if self.trip:
-            self._navigator.start_trip(self.trip.waypoints)
-            self.mode = self.TRIP
-            logger.info('Starting trip with id: {}'.format(self.trip.pk))
-        logger.warning('No trip set to start')
-
-    def set_trip(self, trip):
-        if trip is not None:
-            self.trip = Trip(pk=trip['id'], waypoints=trip['waypoints'])
-            logger.info('Trip set with id: {}'.format(trip['id']))
-        else:
-            self.trip = trip
-
-    async def update_settings(self, **new_settings):
-        if new_settings.get('mode') == self.MOVE_TO_WAYPOINT:
-            target_lat = new_settings.get('target_lat')
-            target_lng = new_settings.get('target_lng')
-            if target_lat and target_lng:
-                await self.move_to_waypoint(target_lat, target_lng)
-        for attr, val in new_settings.items():
-            if hasattr(self, attr):
-                setattr(self, attr, val)
-
-    async def run(self):
-        logger.info('Starting Mothership')
-        Group('gps.update').add(self.AUV_GPS_REPLY_CHANNEL)
-        await curio.spawn(self._update())
-        await curio.spawn(self._read_channels())
-        await curio.run_in_thread(self._navigator.run)
-
     async def _update(self):
         """Broadcast current state on the auv update channel"""
         while True:
             payload = {
-                'lat': self.lat,
-                'lon': self.lon,
-                'heading': self.heading,
                 'left_motor_speed': self.left_motor.speed,
                 'left_motor_duty_cycle': self.left_motor.duty_cycle,
                 'right_motor_speed': self.right_motor.speed,
                 'right_motor_duty_cycle': self.right_motor.duty_cycle,
-                'mode': self.mode,
                 'timestamp': timezone.now().isoformat()
             }
-
-            # broadcast auv data to group
-            Group(AUV_UPDATE_CHANNEL).send({'text': json.dumps(payload)})
-            logger.debug('Broadcast udpate')
-            await curio.sleep(1 / 10)
-
-    async def _read_channels(self):
-        """Check for incoming commands on the motor control channel"""
-        # read all messages off of channel
-        while True:
-            channel, data = channel_layer.receive_many([AUV_SEND_CHANNEL, self.AUV_GPS_REPLY_CHANNEL])
-            if channel == AUV_SEND_CHANNEL and data:
-                logging.debug('Recieved data: {}'.format(data))
-                try:
-                    fnc = getattr(self, data.get('cmd'))
-                except AttributeError:
-                    pass
-                else:
-                    if fnc and callable(fnc):
-                        try:
-                            await curio.run_in_thread(fnc, **data.get('params', {}))
-                        except Exception as exc:
-                            logging.error(exc)
-            elif channel == self.AUV_GPS_REPLY_CHANNEL and data:
-                self.lat = data.get('lat')
-                self.lon = data.get('lon')
-
-            else:
-                await curio.sleep(0.05)  # chill out for a bit
+            self.publish('auv.update', payload)
+            logger.debug('Publish ASV udpate')
+            await asyncio.sleep(1 / self.update_frequency)
 
 
+if __name__ == '__main__':
+    runner = ApplicationRunner(url='ws://localhost:8000/ws', realm='realm1')
+    runner.run(Mothership)

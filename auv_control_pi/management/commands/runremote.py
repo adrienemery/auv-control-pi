@@ -27,6 +27,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         retry_strategy = RetryForever(max_interval=60)
-        runner = ApplicationRunner(url=config.crossbar_url, realm=config.crossbar_realm,
+        url = 'ws://localhost:8000/ws'
+        # url = config.crossbar_url
+        runner = ApplicationRunner(url=url, realm=config.crossbar_realm,
                                    retry_strategy=retry_strategy)
         runner.run(RemoteInterface)
