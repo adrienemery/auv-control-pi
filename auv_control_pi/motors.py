@@ -3,7 +3,6 @@ import logging
 import time
 from threading import Thread
 
-from autobahn.asyncio import ApplicationSession
 from navio.pwm import PWM
 
 try:
@@ -61,8 +60,7 @@ class Motor:
             raise ValueError('Unknown motor_type')
 
         self._speed = 0
-        self.duty_cycle_us = self.pwm_map['stopped']
-        self.duty_cycle_ms = self.duty_cycle_us / 1000
+        self.duty_cycle_ms = self.pwm_map['stopped']
 
         self.pwm = PWM(self.rc_channel - 1)
         self.initialized = False
@@ -86,7 +84,7 @@ class Motor:
             self.stop()
             self.pwm.set_duty_cycle(self.duty_cycle_ms)
             time.sleep(1)
-        logger.info('{} motor initialized'.format(self.name))
+        logger.info('{} Motor: initialized'.format(self.name.title()))
         self.initialized = True
 
     def _update(self):
@@ -125,9 +123,8 @@ class Motor:
             )
 
         self._speed = value
-        self.duty_cycle_us = duty_cycle / 1000
-        self.duty_cycle_ms = self.duty_cycle_us / 1000  # convert to milliseconds
-        logger.info('{} motor speed updated to ({} %, {} us)'.format(self.name, value, self.duty_cycle_us))
+        self.duty_cycle_ms = duty_cycle  # convert to milliseconds
+        logger.info('{} Motor: speed updated to ({} %, {} us)'.format(self.name.title(), value, self.duty_cycle_ms))
 
     def forward(self, speed):
         self.speed = abs(speed)
