@@ -67,7 +67,7 @@ def get_new_point(point_a, bearing, distance):
     Calculate the coordinates of a point, given a starting point a bearing and a distance
     Args:
         point_a: Reference point coordinates Point(lat,lng)
-        bearing: Bearing from reference point to new point
+        bearing: Bearing from reference point to new point [-180:180]
         distance: Distance between the reference point and the new point
 
     Returns: new point coordinates Point(lat,lng)
@@ -77,7 +77,7 @@ def get_new_point(point_a, bearing, distance):
     rminor = 6356752.3142  # radius of earth's minor axis (radius from the center of the earth to the North/South pole)
     f = (rmajor - rminor) / rmajor  # flattening of the ellipsoid
 
-    new_point_lat, new_point_lng, _ = vinc_pt(f, rmajor, point_a.lat, point_a.lng, bearing, distance)
+    new_point_lat, new_point_lng, _ = vinc_pt(f, rmajor, point_a.lat, point_a.lng, reverse_heading_modulo_180(bearing), distance)
     new_point = Point(lat=new_point_lat, lng=new_point_lng)
     return new_point
 
@@ -92,9 +92,25 @@ def heading_modulo_180(heading):
     """
     while heading > 180 or heading < -180:
         if heading > 180:
-            heading - 360
+            heading -= 360
         elif heading < -180:
-            heading + 360
+            heading += 360
+    return heading
+
+
+# May be write a heading_modulo_360 instead?
+def reverse_heading_modulo_180(heading):
+    """
+    Corrects heading value to range between [0:360]
+    Args:
+        heading: Heading with potential value ranges in [-180:180]
+
+    Returns: Corrected heading which value ranges between [0:360]
+    """
+    if -180 < heading < 0:
+        heading += 360
+    if heading > 180 or heading < -180:
+        return reverse_heading_modulo_180(heading_modulo_180(heading))
     return heading
 
 
