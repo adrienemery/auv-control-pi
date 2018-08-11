@@ -11,6 +11,7 @@ try:
 except ImportError:
     pi = False
     logging.warning('Not running on Pi. You will not have access to GPS.')
+
 import math
 import queue
 import struct
@@ -248,6 +249,7 @@ class GPS:
         while True:
             await curio.run_in_thread(self.update)
             await self.broadcast()
+
 
 if __name__ == '__main__':
     if pi:

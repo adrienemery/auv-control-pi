@@ -11,6 +11,8 @@ try:
 except ImportError:
     pi = False
 
+pi = False  # TODO make this an enviornment var
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
