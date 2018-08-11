@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+
+  admin:
+    build: .
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+    ports:
+      - "9000:8000"
+    command: python manage.py runserver 0.0.0.0:8000  # need to run external port
+
+  crossbar:
+    image: crossbario/crossbar
+    container_name: crossbar
+    ports:
+      - "8090:8080"
+
+  auvcontrol:
+    build: .
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+    command: python manage.py runauv
+    links:
+      - crossbar
+
+volumes:
+  logvolume01: {}
+
+  # used to persist model data between container recreation
+  data:
+    driver: local

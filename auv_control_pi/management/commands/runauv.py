@@ -27,7 +27,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         retry_strategy = RetryForever(max_interval=60)
-        url = 'ws://localhost:8000/ws'
+        url = 'ws://crossbar:8080/ws'  # crossbar is internal docker dns name
         # url = config.crossbar_url
         runner = ApplicationRunner(url=url, realm=config.crossbar_realm,
                                    retry_strategy=retry_strategy)

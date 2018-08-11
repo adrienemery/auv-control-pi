@@ -1,8 +1,5 @@
-asgi-redis>=1.4.3
 autobahn==0.16.0
 git+https://github.com/isra17/autobahn-autoreconnect#egg=autobahn_autoreconnect
-channels==1.1.8
-curio==0.4
 Django==1.10.1
 django-solo==1.1.2
 envitro==0.4.2
