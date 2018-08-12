@@ -27,6 +27,20 @@ services:
     command: python manage.py runauv
     links:
       - crossbar
+    depends_on:
+      - crossbar
+
+  rccontrol:
+    build: .
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+    command: python rc_controller.py
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
 
 volumes:
   logvolume01: {}
