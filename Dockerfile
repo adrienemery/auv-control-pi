@@ -1,4 +1,4 @@
-FROM python:3
+FROM crossbario/autobahn-python-armhf
 ENV PYTHONUNBUFFERED 1
 RUN mkdir /code
 WORKDIR /code

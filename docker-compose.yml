@@ -13,7 +13,7 @@ services:
     command: python manage.py runserver 0.0.0.0:8000  # need to run external port
 
   crossbar:
-    image: crossbario/crossbar
+    image: crossbario/crossbar-armhf
     container_name: crossbar
     ports:
       - "8090:8080"
