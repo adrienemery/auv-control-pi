@@ -50,9 +50,18 @@ class RCControler(ApplicationSession):
 
         while True:
             # main loop
+
+            rc_armed = int(self.rc_input.read(ch=RC_ARM_CHANNEL))
+            if rc_armed < RC_ARM_CHANNEL and self.armed is True:
+                logger.info('RC Control Disarmed')
+                self.armed = False
+            elif rc_armed > RC_ARM_CHANNEL and self.armed is False:
+                logger.info('RC Control Armed')
+                self.armed = True
+
             if self.armed:
-                rc_throttle = self.rc_input.read(ch=RC_THROTTLE_CHANNEL)
-                rc_turn = self.rc_input.read(ch=RC_TURN_CHANNEL)
+                rc_throttle = int(self.rc_input.read(ch=RC_THROTTLE_CHANNEL))
+                rc_turn = int(self.rc_input.read(ch=RC_TURN_CHANNEL))
 
                 # only update if the signal has changed
                 if last_throttle_signal and rc_throttle != last_throttle_signal:
@@ -73,14 +82,6 @@ class RCControler(ApplicationSession):
                         self.call('auv.move_right', rc_turn)
                     else:
                         self.call('auv.move_center')
-
-            rc_armed = self.rc_input.read(ch=RC_ARM_CHANNEL)
-            if rc_armed < RC_ARM_CHANNEL and self.armed is True:
-                logger.info('RC Control Disarmed')
-                self.armed = False
-            elif rc_armed > RC_ARM_CHANNEL and self.armed is False:
-                logger.info('RC Control Armed')
-                self.armed = True
 
             await asyncio.sleep(0.05)
 
