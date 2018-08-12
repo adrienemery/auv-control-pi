@@ -31,7 +31,7 @@ services:
       - crossbar
 
   rccontrol:
-    build: .
+    image: auv-control-pi_admin
     restart: always
     volumes:
       - .:/code

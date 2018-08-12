@@ -64,29 +64,36 @@ class RCControler(ApplicationSession):
                 rc_turn = int(self.rc_input.read(ch=RC_TURN_CHANNEL))
 
                 # only update if the signal has changed
-                if last_throttle_signal and rc_throttle != last_throttle_signal:
+                if last_throttle_signal and abs(rc_throttle - last_throttle_signal) > 5:
                     if rc_throttle < REVERSE_THRESHOLD:
-                        self.call('auv.reverse_throttle', rc_throttle)
+                        throttle = int(100 * abs(rc_throttle - REVERSE_THRESHOLD) / abs(RC_LOW - REVERSE_THRESHOLD))
+                        self.call('auv.reverse_throttle', throttle)
                     elif rc_throttle > FORWARD_THRESHOLD:
-                        self.call('auv.forward_throttle', rc_throttle)
+                        throttle = int(100 * abs(rc_throttle - FORWARD_THRESHOLD) / abs(RC_HIGH - FORWARD_THRESHOLD))
+                        self.call('auv.forward_throttle', throttle)
                     else:
                         self.call('auv.stop')
 
                 # store the current reading for use next time around the loop
                 last_throttle_signal = rc_throttle
 
-                if last_turn_signal and rc_turn != last_turn_signal:
+                if last_turn_signal and abs(rc_turn - last_turn_signal) > 5:
                     if rc_turn < LEFT_THRESHOLD:
-                        self.call('auv.move_left', rc_turn)
+                        turn = int(100 * abs(rc_turn - LEFT_THRESHOLD) / abs(RC_LOW - LEFT_THRESHOLD))
+                        self.call('auv.move_left', turn)
                     elif rc_turn > RIGHT_THRESHOLD:
-                        self.call('auv.move_right', rc_turn)
+                        turn = int(100 * abs(rc_turn - RIGHT_THRESHOLD) / abs(RC_HIGH - RIGHT_THRESHOLD))
+                        self.call('auv.move_right', turn)
                     else:
-                        self.call('auv.move_center')
+                        self.call('auv.move_center') 
+
+                # store the current reading for use next time around the loop
+                last_turn_signal = rc_turn
 
             await asyncio.sleep(0.05)
 
 
 if __name__ == '__main__':
-    time.sleep(5)
+    time.sleep(7)
     runner = ApplicationRunner(url='ws://crossbar:8080/ws', realm='realm1')
     runner.run(RCControler)
