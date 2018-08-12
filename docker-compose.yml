@@ -2,24 +2,24 @@ version: '3'
 
 services:
 
+  crossbar:
+    image: crossbario/crossbar-armhf  # use the arm version on raspberry pi
+    container_name: crossbar
+    ports:
+      - "8080:8080"
+
   admin:
-    build: .
+    image: auv_control
     restart: always
     volumes:
       - .:/code
       - logvolume01:/var/log
     ports:
-      - "9000:8000"
+      - "8000:8000"
     command: python manage.py runserver 0.0.0.0:8000  # need to run external port
 
-  crossbar:
-    image: crossbario/crossbar-armhf  # use the arm version on raspberry pi
-    container_name: crossbar
-    ports:
-      - "8090:8080"
-
   auvcontrol:
-    build: .
+    image: auv_control
     restart: always
     volumes:
       - .:/code
@@ -31,7 +31,7 @@ services:
       - crossbar
 
   rccontrol:
-    image: auv-control-pi_admin
+    image: auv_control
     restart: always
     volumes:
       - .:/code
