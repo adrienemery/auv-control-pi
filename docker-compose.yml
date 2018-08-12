@@ -5,6 +5,7 @@ services:
   crossbar:
     image: crossbario/crossbar-armhf  # use the arm version on raspberry pi
     container_name: crossbar
+    restart: always
     ports:
       - "8080:8080"
 
