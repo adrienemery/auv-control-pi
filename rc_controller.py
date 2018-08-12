@@ -52,10 +52,10 @@ class RCControler(ApplicationSession):
             # main loop
 
             rc_armed = int(self.rc_input.read(ch=RC_ARM_CHANNEL))
-            if rc_armed < RC_ARM_CHANNEL and self.armed is True:
+            if rc_armed < ARMED_THRESHOLD and self.armed is True:
                 logger.info('RC Control Disarmed')
                 self.armed = False
-            elif rc_armed > RC_ARM_CHANNEL and self.armed is False:
+            elif rc_armed > ARMED_THRESHOLD and self.armed is False:
                 logger.info('RC Control Armed')
                 self.armed = True
 

@@ -1,9 +1,6 @@
 import asyncio
 import logging
 
-from collections import deque
-from django.utils import timezone
-
 from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
 from .models import Configuration
 from .motors import Motor
@@ -19,10 +16,13 @@ class Mothership(ApplicationSession):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.speed = 0
-        self.command_buffer = deque()
-        config = Configuration.get_solo()
-        self.left_motor = Motor(name='left', rc_channel=config.left_motor_channel)
-        self.right_motor = Motor(name='right', rc_channel=config.right_motor_channel)
+        # config = Configuration.get_solo()
+        # self.left_motor = Motor(name='left', rc_channel=config.left_motor_channel)
+        # self.right_motor = Motor(name='right', rc_channel=config.right_motor_channel)
+
+        self.left_motor = Motor(name='left', rc_channel=10)
+        self.right_motor = Motor(name='right', rc_channel=11)
+
         self.reverse_speed = 0
         self.forward_speed = 0
         self.throttle = 0
@@ -126,7 +126,6 @@ class Mothership(ApplicationSession):
 
     def stop(self):
         logger.info('Stopping')
-        self._navigator.pause_trip()
         self.left_motor.stop()
         self.right_motor.stop()
 

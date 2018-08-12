@@ -2,7 +2,6 @@ import logging
 
 from django.core.management.base import BaseCommand
 from auv_control_pi.auv_control import Mothership
-from auv_control_pi.config import config
 from autobahn_autoreconnect import BackoffStrategy, ApplicationRunner
 
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +28,6 @@ class Command(BaseCommand):
         retry_strategy = RetryForever(max_interval=60)
         url = 'ws://crossbar:8080/ws'  # crossbar is internal docker dns name
         # url = config.crossbar_url
-        runner = ApplicationRunner(url=url, realm=config.crossbar_realm,
+        runner = ApplicationRunner(url=url, realm='realm1',
                                    retry_strategy=retry_strategy)
         runner.run(Mothership)
