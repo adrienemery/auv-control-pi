@@ -75,9 +75,12 @@ class RCControler(ApplicationSession):
             if rc_armed < ARMED_THRESHOLD and self.armed is True:
                 logger.info('RC Control Disarmed')
                 self.armed = False
+                self.call('auv.set_control_mode', 'manual')
+
             elif rc_armed > ARMED_THRESHOLD and self.armed is False:
                 logger.info('RC Control Armed')
                 self.armed = True
+                self.call('auv.set_control_mode', 'rc')
 
             # only respond to commands when the rc is armed
             if self.armed:

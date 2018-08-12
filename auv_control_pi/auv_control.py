@@ -7,6 +7,9 @@ from .motors import Motor
 
 
 logger = logging.getLogger(__name__)
+MANUAL = 'manual'
+RC = 'rc'
+AUTO = 'auto'
 
 
 class Mothership(ApplicationSession):
@@ -19,6 +22,8 @@ class Mothership(ApplicationSession):
         # config = Configuration.get_solo()
         # self.left_motor = Motor(name='left', rc_channel=config.left_motor_channel)
         # self.right_motor = Motor(name='right', rc_channel=config.right_motor_channel)
+
+        self.control_mode = MANUAL
 
         self.left_motor = Motor(name='left', rc_channel=10)
         self.right_motor = Motor(name='right', rc_channel=11)
@@ -47,10 +52,14 @@ class Mothership(ApplicationSession):
         self.register(self.move_left, 'auv.move_left')
         self.register(self.move_center, 'auv.move_center')
         self.register(self.stop, 'auv.stop')
+        self.register(self.set_control_mode, 'auv.set_control_mode')
 
         # create subtasks
         loop = asyncio.get_event_loop()
         loop.create_task(self._update())
+
+    def set_control_mode(self, mode):
+        self.control_mode = mode
 
     def set_left_motor_speed(self, speed):
         self.left_motor.speed = int(speed)
@@ -126,6 +135,8 @@ class Mothership(ApplicationSession):
 
     def stop(self):
         logger.info('Stopping')
+        self.throttle = 0
+        self.turn_speed = 0
         self.left_motor.stop()
         self.right_motor.stop()
 
@@ -139,6 +150,7 @@ class Mothership(ApplicationSession):
                 'right_motor_duty_cycle': self.right_motor.duty_cycle_ms,
                 'throttle': self.throttle,
                 'turn_speed': self.turn_speed,
+                'control_mode': self.control_mode,
                 # 'timestamp': timezone.now().isoformat()
             }
             self.publish('auv.update', payload)
