@@ -65,14 +65,14 @@ class Mothership(ApplicationSession):
         of the left motor
         """
         self.turn_speed = abs(int(turn_speed))
-        logger.info('Move right with speed {}'.format(turn_speed))
+        logger.debug('Move right with speed {}'.format(turn_speed))
         self.right_motor.speed = round(self.throttle * ((100 - self.turn_speed) / 100))
         self.left_motor.speed = self.throttle
 
     def move_left(self, turn_speed):
         """Adjust the speed of the turning side motor to induce a turn
         """
-        logger.info('Move left with speed {}'.format(turn_speed))
+        logger.debug('Move left with speed {}'.format(turn_speed))
         self.turn_speed = -abs(int(turn_speed))
         self.left_motor.speed = round(self.throttle * ((100 + self.turn_speed) / 100))
         self.right_motor.speed = self.throttle
@@ -87,7 +87,7 @@ class Mothership(ApplicationSession):
     def rotate_right(self, speed):
         """Set motors in opposite direction to rotate craft
         """
-        logger.info('Rotate right with speed {}'.format(speed))
+        logger.debug('Rotate right with speed {}'.format(speed))
         speed = int(speed)
         self.throttle = 0
         self.left_motor.forward(speed)
@@ -96,14 +96,14 @@ class Mothership(ApplicationSession):
     def rotate_left(self, speed):
         """Set motors in opposite direction to rotate craft
         """
-        logger.info('Rotate left with speed {}'.format(speed))
+        logger.debug('Rotate left with speed {}'.format(speed))
         speed = int(speed)
         self.throttle = 0
         self.left_motor.reverse(speed)
         self.right_motor.forward(speed)
 
     def forward_throttle(self, throttle):
-        logger.info('Setting forward throttle to {}'.format(throttle))
+        logger.debug('Setting forward throttle to {}'.format(throttle))
         self.throttle = abs(int(throttle))
         if self.turn_speed > 0:
             self.move_right(self.turn_speed)
@@ -115,7 +115,7 @@ class Mothership(ApplicationSession):
 
     def reverse_throttle(self, throttle):
         self.throttle = -(abs(int(throttle)))
-        logger.info('Move reverse with speed {}'.format(throttle))
+        logger.debug('Move reverse with speed {}'.format(throttle))
         if self.turn_speed > 0:
             self.move_right(self.turn_speed)
         elif self.turn_speed < 0:

@@ -86,7 +86,7 @@ class Motor:
             self.stop()
             self.pwm.set_duty_cycle(self.duty_cycle_ms)
             time.sleep(1)
-        logger.info('{} Motor: initialized'.format(self.name.title()))
+        logger.debug('{} Motor: initialized'.format(self.name.title()))
         self.initialized = True
 
     def _update(self):
@@ -126,7 +126,7 @@ class Motor:
 
         self._speed = value
         self.duty_cycle_ms = duty_cycle  # convert to milliseconds
-        logger.info('{} Motor: speed updated to ({} %, {} us)'.format(self.name.title(), value, self.duty_cycle_ms))
+        logger.debug('{} Motor: speed updated to ({} %, {} us)'.format(self.name.title(), value, self.duty_cycle_ms))
 
     def forward(self, speed):
         self.speed = abs(speed)
