@@ -1,0 +1,76 @@
+
+
+- hosts: pi
+  tasks:
+
+    - name: Check If Docker Already Installed
+      command: /usr/bin/docker
+      register: docker_installed
+      ignore_errors: True
+
+    - name: Get Docker Install Script
+      get_url:
+        url: https://get.docker.com
+        dest: /tmp/get-docker.sh
+      when: docker_installed is failed
+
+    - name: Install Docker
+      command: sh /tmp/get-docker.sh
+      when: docker_installed is failed
+
+    - name: Check If Docker Compose Already Installed
+      command: docker-compose --version
+      register: docker_compose_installed
+      ignore_errors: True
+
+    - name: Install Docker-Compose
+      pip:
+        name: docker-compose
+      when: docker_compose_installed is failed
+
+    - name: Create src directory
+      file:
+        path: /home/pi/src
+        state: directory
+
+    - name: Checkout AUV Control From Github
+      git:
+        repo: https://github.com/adrienemery/auv-control-pi.git
+        dest: /home/pi/src/auv_control_pi
+
+    - name: Build AUV docker image
+      docker_image:
+         name: auv_control
+         build_path: /home/pi/src/auv_control_pi
+         state: present
+
+    - name: Pull Crossbar Image
+      docker_image:
+        name: crossbario/crossbar-armhf
+        state: present
+
+    - name: Pull Autobahn Python Image
+      docker_image:
+        name: crossbario/autobahn-python-armhf
+        state: present
+
+    - name: Run docker compose file
+      docker_service:
+        project_src: /home/pi/src/auv_control_pi
+      register: output
+
+    - debug:
+        var: output
+
+    - assert:
+        that:
+          - "admin.auv_control_pi_admin_1.state.running"
+          - "auvcontrol.auv_control_pi_auvcontrol_1.state.running"
+          - "crossbar.crossbar.state.running"
+          - "rccontrol.auv_control_pi_rccontrol_1.state.running"
+
+
+
+
+
+
