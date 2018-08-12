@@ -1,3 +1,8 @@
+"""
+Utility script to print rc input from all channels to console
+"""
+
+
 from navio.rcinput import RCInput
 import time
 
