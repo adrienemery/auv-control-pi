@@ -2,14 +2,11 @@ import asyncio
 import logging
 
 from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
-from .models import Configuration
-from .motors import Motor
+from ..models import Configuration
+from ..motors import Motor
 
 
 logger = logging.getLogger(__name__)
-MANUAL = 'manual'
-RC = 'rc'
-AUTO = 'auto'
 
 
 class Mothership(ApplicationSession):
@@ -22,8 +19,6 @@ class Mothership(ApplicationSession):
         # config = Configuration.get_solo()
         # self.left_motor = Motor(name='left', rc_channel=config.left_motor_channel)
         # self.right_motor = Motor(name='right', rc_channel=config.right_motor_channel)
-
-        self.control_mode = MANUAL
 
         self.left_motor = Motor(name='left', rc_channel=10)
         self.right_motor = Motor(name='right', rc_channel=11)
@@ -150,7 +145,6 @@ class Mothership(ApplicationSession):
                 'right_motor_duty_cycle': self.right_motor.duty_cycle_ms,
                 'throttle': self.throttle,
                 'turn_speed': self.turn_speed,
-                'control_mode': self.control_mode,
                 # 'timestamp': timezone.now().isoformat()
             }
             self.publish('auv.update', payload)

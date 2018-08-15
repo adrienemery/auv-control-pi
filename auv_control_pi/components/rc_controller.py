@@ -50,25 +50,39 @@ class RCControler(ApplicationSession):
         super().__init__(*args, **kwargs)
         self.armed = False
         self.rc_input = RCInput()
+        self.last_throttle_signal = None
+        self.last_turn_signal = None
+        self.update_frequency = 10
 
     def onConnect(self):
         logger.info('Connecting to {} as {}'.format(self.config.realm, 'rc_control'))
         self.join(realm=self.config.realm)
 
     def onJoin(self, details):
-        """Register functions for access via RPC and start update loops"""
+        """Register functions for access via RPC and start update loops
+        """
         logger.info("Joined Crossbar Session")
 
         # create subtasks
         loop = asyncio.get_event_loop()
-        loop.create_task(self._update())
+        loop.create_task(self.run())
+        loop.create_task(self.update())
 
-    async def _update(self):
-        """Broadcast current state on the auv update channel"""
-        last_throttle_signal = None
-        last_turn_signal = None
+    async def update(self):
+        while True:
+            self.publish(
+                'rc_control.update',
+                {
+                    'armed': self.armed,
+                    'throttle': self.ast_throttle_signal,
+                    'turn': self.self.last_turn_signal,
+                }
+            )
+            await asyncio.sleep(1 / self.update_frequency)
 
-        # main control loop
+    async def run(self):
+        """Main controll loop
+        """
         while True:
             # check if the armed button is on/off
             rc_armed = int(self.rc_input.read(ch=RC_ARM_CHANNEL))
@@ -82,13 +96,18 @@ class RCControler(ApplicationSession):
                 self.armed = True
                 self.call('auv.set_control_mode', 'rc')
 
+                # TODO when initially armed it would be useful to force the user to zero
+                # the throttle and turn inputs before any new commands are registered
+                # This will prevent connecting via the RC controller and having the throttle
+                # already engaged which could cause unexpected behaviour.
+
             # only respond to commands when the rc is armed
             if self.armed:
                 rc_throttle = int(self.rc_input.read(ch=RC_THROTTLE_CHANNEL))
                 rc_turn = int(self.rc_input.read(ch=RC_TURN_CHANNEL))
 
                 # only update if the signal has changed
-                if last_throttle_signal is not None and abs(rc_throttle - last_throttle_signal) > DEBOUNCE_RANGE:
+                if self.last_throttle_signal is not None and abs(rc_throttle - self.last_throttle_signal) > DEBOUNCE_RANGE:
                     if rc_throttle < REVERSE_THRESHOLD:
                         throttle = int(100 * abs(rc_throttle - REVERSE_THRESHOLD) / abs(RC_LOW - REVERSE_THRESHOLD))
                         self.call('auv.reverse_throttle', throttle)
@@ -99,12 +118,12 @@ class RCControler(ApplicationSession):
                         self.call('auv.stop')
 
                     # store the current reading for use next time around the loop
-                    last_throttle_signal = rc_throttle
+                    self.last_throttle_signal = rc_throttle
 
-                if last_throttle_signal is None:
-                    last_throttle_signal = rc_throttle
+                if self.last_throttle_signal is None:
+                    self.last_throttle_signal = rc_throttle
 
-                if last_turn_signal is not None and abs(rc_turn - last_turn_signal) > DEBOUNCE_RANGE:
+                if self.last_turn_signal is not None and abs(rc_turn - self.last_turn_signal) > DEBOUNCE_RANGE:
                     if rc_turn < LEFT_THRESHOLD:
                         turn = int(100 * abs(rc_turn - LEFT_THRESHOLD) / abs(RC_LOW - LEFT_THRESHOLD))
                         self.call('auv.move_left', turn)
@@ -115,13 +134,12 @@ class RCControler(ApplicationSession):
                         self.call('auv.move_center')
 
                     # store the current reading for use next time around the loop
-                    last_turn_signal = rc_turn
+                    self.last_turn_signal = rc_turn
 
-                if last_turn_signal is None:
-                    last_turn_signal = rc_turn
+                if self.last_turn_signal is None:
+                    self.last_turn_signal = rc_turn
 
-            # release the event loop and wait a little bit until reading in a new command
-            # to prevent twichy controls
+            # wait a little bit until reading in a new command to prevent twichy controls
             await asyncio.sleep(0.05)
 
 

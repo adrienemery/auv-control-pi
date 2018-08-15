@@ -54,9 +54,11 @@
         name: crossbario/autobahn-python-armhf
         state: present
 
-    - name: Run docker compose file
+    - name: Run docker compose up
       docker_service:
         project_src: /home/pi/src/auv_control_pi
+        state: present
+        restarted: yes
       register: output
 
     - debug:

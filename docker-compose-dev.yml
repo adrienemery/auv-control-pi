@@ -3,11 +3,11 @@ version: '3'
 services:
 
   crossbar:
-    image: crossbario/crossbar-armhf  # use the arm version on raspberry pi
+    image: crossbario/crossbar  # use the arm version on raspberry pi
     container_name: crossbar
     restart: always
     ports:
-      - "8080:8080"
+      - "8090:8080"
 
   admin:
     image: auv_control
@@ -31,17 +31,6 @@ services:
     depends_on:
       - crossbar
 
-  rccontrol:
-    image: auv_control
-    restart: always
-    volumes:
-      - .:/code
-      - logvolume01:/var/log
-    command: python manage.py runrc
-    links:
-      - crossbar
-    depends_on:
-      - crossbar
 
 volumes:
   logvolume01: {}
