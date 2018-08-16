@@ -148,7 +148,6 @@ class Mothership(ApplicationSession):
                 # 'timestamp': timezone.now().isoformat()
             }
             self.publish('auv.update', payload)
-            logger.debug('Publish ASV udpate')
             await asyncio.sleep(1 / self.update_frequency)
 
 
