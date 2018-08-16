@@ -9,12 +9,22 @@ services:
     ports:
       - "8090:8080"
 
+  crossbarremote:
+    image: crossbario/crossbar  # use the arm version on raspberry pi
+    container_name: crossbarremote
+    restart: always
+    ports:
+      - "9090:8080"
+
   admin:
     image: auv_control
     restart: always
     volumes:
       - .:/code
       - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
     ports:
       - "8000:8000"
     command: python manage.py runserver 0.0.0.0:8000  # need to run external port
@@ -25,16 +35,35 @@ services:
     volumes:
       - .:/code
       - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
     command: python manage.py runauv
     links:
       - crossbar
     depends_on:
       - crossbar
 
+  remoteproxy:
+    image: auv_control
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
+    command: python manage.py runremote
+    links:
+      - crossbar
+      - crossbarremote
+    depends_on:
+      - crossbar
+      - crossbarremote
 
 volumes:
   logvolume01: {}
 
   # used to persist model data between container recreation
-  data:
+  dbdata:
     driver: local
