@@ -14,7 +14,7 @@ class RouterProxy:
     just connect to the local WAMP router.
 
     When new RPC methods are added they need to be registered here.
-    Similarly when new topics are published we need to add subscribers here to
+    Similarly when new topics are published we need to add the topics here to
     "re-publish" them to the remote WAMP router.
 
     """
@@ -26,10 +26,12 @@ class RouterProxy:
         'auv.move_left',
         'auv.move_center',
         'auv.stop',
+        # add rpc's here to expose them to remote router
     ]
 
     published_topics_proxy = [
         'auv.update',
+        # add topics here to expose them to remote router
     ]
 
     def __init__(self, remote_component, local_component):
@@ -43,7 +45,10 @@ class RouterProxy:
         self.local_wamp.on('join', self.join_local)
 
     async def register_rpc_proxies(self):
-        # use the list of known rpc names to register handler functions dynamically
+        """Register RPC methods on remote router that mirror RPC's on the local router
+
+        This allows a remote component to call RPC's on the local WAMP router.
+        """
         for rpc_name in self.rpc_proxy_list:
 
             class RPCProxy:
@@ -59,6 +64,11 @@ class RouterProxy:
             await self.remote_session.register(RPCProxy(self.local_session, rpc_name), rpc_name)
 
     async def register_pub_sub_proxies(self):
+        """Publish data to remote router on topics that we are subscribed to locally
+
+        This allows remote components to subscribe to topics that are published
+        locally since they are being "re-published".
+        """
         for topic in self.published_topics_proxy:
 
             class PubSubProxy:
@@ -74,20 +84,25 @@ class RouterProxy:
             await self.local_session.subscribe(PubSubProxy(self.remote_session, topic), topic)
 
     async def register_proxies(self):
-        await self.register_pub_sub_proxies()
-        await self.register_rpc_proxies()
+        # ensure we have both remote and local sessions setup before
+        # registering proxy rpc's and pub/sub's
+        if self.remote_session and self.local_session:
+            await self.register_pub_sub_proxies()
+            await self.register_rpc_proxies()
 
     async def join_remote(self, session, details):
+        """Handle setup when we join the remote router
+        """
         logger.info("Connected to Remote WAMP router")
         self.remote_session = session
-        if self.local_session:
-            await self.register_proxies()
+        await self.register_proxies()
 
     async def join_local(self, session, details):
+        """Handle setup when we join the local router
+        """
         logger.info("Connected to Local WAMP router")
         self.local_session = session
-        if self.remote_session:
-            await self.register_proxies()
+        await self.register_proxies()
 
 
 # remote_comp = Component(

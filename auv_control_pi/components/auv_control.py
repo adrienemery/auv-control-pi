@@ -33,28 +33,25 @@ class Mothership(ApplicationSession):
         logger.info('Connecting to {} as {}'.format(self.config.realm, 'auv'))
         self.join(realm=self.config.realm)
 
-    def onJoin(self, details):
-        """Register functions for access via RPC and start update loops"""
+    async def onJoin(self, details):
+        """Register functions for access via RPC and start update loops
+        """
         logger.info("Joined Crossbar Session")
         self.left_motor.initialize()
         self.right_motor.initialize()
 
-        self.register(self.set_left_motor_speed, 'auv.set_left_motor_speed')
-        self.register(self.set_right_motor_speed, 'auv.set_right_motor_speed')
-        self.register(self.forward_throttle, 'auv.forward_throttle')
-        self.register(self.reverse_throttle, 'auv.reverse_throttle')
-        self.register(self.move_right, 'auv.move_right')
-        self.register(self.move_left, 'auv.move_left')
-        self.register(self.move_center, 'auv.move_center')
-        self.register(self.stop, 'auv.stop')
-        self.register(self.set_control_mode, 'auv.set_control_mode')
+        await self.register(self.set_left_motor_speed, 'auv.set_left_motor_speed')
+        await self.register(self.set_right_motor_speed, 'auv.set_right_motor_speed')
+        await self.register(self.forward_throttle, 'auv.forward_throttle')
+        await self.register(self.reverse_throttle, 'auv.reverse_throttle')
+        await self.register(self.move_right, 'auv.move_right')
+        await self.register(self.move_left, 'auv.move_left')
+        await self.register(self.move_center, 'auv.move_center')
+        await self.register(self.stop, 'auv.stop')
 
         # create subtasks
         loop = asyncio.get_event_loop()
         loop.create_task(self._update())
-
-    def set_control_mode(self, mode):
-        self.control_mode = mode
 
     def set_left_motor_speed(self, speed):
         self.left_motor.speed = int(speed)
@@ -136,7 +133,8 @@ class Mothership(ApplicationSession):
         self.right_motor.stop()
 
     async def _update(self):
-        """Broadcast current state on the auv update channel"""
+        """Publish current state to anyone listening
+        """
         while True:
             payload = {
                 'left_motor_speed': self.left_motor.speed,
@@ -149,8 +147,3 @@ class Mothership(ApplicationSession):
             }
             self.publish('auv.update', payload)
             await asyncio.sleep(1 / self.update_frequency)
-
-
-if __name__ == '__main__':
-    runner = ApplicationRunner(url='ws://localhost:8000/ws', realm='realm1')
-    runner.run(Mothership)

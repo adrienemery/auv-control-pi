@@ -1,7 +1,7 @@
 import logging
 
 from django.core.management.base import BaseCommand
-from auv_control_pi.components.remote_control import main
+from auv_control_pi.components.remote_proxy import main
 
 logging.basicConfig(level=logging.INFO)
 
