@@ -27,7 +27,7 @@ class Mothership(ApplicationSession):
         self.forward_speed = 0
         self.throttle = 0
         self.turn_speed = 0
-        self.update_frequency = 5
+        self.update_frequency = 10
 
     def onConnect(self):
         logger.info('Connecting to {} as {}'.format(self.config.realm, 'auv'))

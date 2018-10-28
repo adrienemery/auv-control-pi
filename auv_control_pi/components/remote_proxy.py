@@ -22,6 +22,7 @@ class RouterProxy:
         'auv.set_left_motor_speed',
         'auv.set_right_motor_speed',
         'auv.forward_throttle',
+        'auv.reverse_throttle',
         'auv.move_right',
         'auv.move_left',
         'auv.move_center',
@@ -42,6 +43,7 @@ class RouterProxy:
 
         # associate ourselves with each WAMP session lifecycle
         self.remote_wamp.on('join', self.join_remote)
+        # self.remote_wamp.on('challenge', self.on_remote_challenge)
         self.local_wamp.on('join', self.join_local)
 
     async def register_rpc_proxies(self):
@@ -58,7 +60,7 @@ class RouterProxy:
                     self._rpc_name = rpc_name
 
                 async def __call__(self, *args, **kwargs):
-                    logger.info('Proxying RPC {}, with args {}, kwargs {}'.format(self._rpc_name, args, kwargs))
+                    logger.debug('Proxying RPC {}, with args {}, kwargs {}'.format(self._rpc_name, args, kwargs))
                     await self._local_session.call(self._rpc_name, *args, **kwargs)
 
             await self.remote_session.register(RPCProxy(self.local_session, rpc_name), rpc_name)
@@ -105,14 +107,15 @@ class RouterProxy:
         await self.register_proxies()
 
 
-# remote_comp = Component(
-#     transports=config.crossbar_url,
-#     realm=config.crossbar_realm,
-# )
-
 remote_comp = Component(
-    transports="ws://crossbarremote:8080/ws",
-    realm="realm1",
+    transports=config.crossbar_url,
+    realm=config.crossbar_realm,
+    authentication={
+        'ticket': {
+            'ticket': config.auth_token,
+            'authid': 'auv'
+        }
+    },
 )
 
 local_comp = Component(
