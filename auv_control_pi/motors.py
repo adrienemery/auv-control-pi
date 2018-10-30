@@ -11,7 +11,7 @@ try:
 except ImportError:
     pi = False
 
-pi = False  # TODO make this an enviornment var
+pi = True  # TODO make this an enviornment var
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ class Motor:
             raise ValueError('Unknown motor_type')
 
         self._speed = 0
-        self.duty_cycle_ms = self.pwm_map['stopped']
+        self.duty_cycle_ms = self.pwm_map['stopped'] / 1000
 
         self.pwm = PWM(self.rc_channel - 1)
         self.initialized = False
@@ -125,7 +125,7 @@ class Motor:
             )
 
         self._speed = value
-        self.duty_cycle_ms = duty_cycle  # convert to milliseconds
+        self.duty_cycle_ms = duty_cycle / 1000  # convert to milliseconds
         logger.debug('{} Motor: speed updated to ({} %, {} us)'.format(self.name.title(), value, self.duty_cycle_ms))
 
     def forward(self, speed):
