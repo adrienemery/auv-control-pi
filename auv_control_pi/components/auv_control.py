@@ -16,6 +16,7 @@ class Mothership(ApplicationSession):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.speed = 0
+
         # config = Configuration.get_solo()
         # self.left_motor = Motor(name='left', rc_channel=config.left_motor_channel)
         # self.right_motor = Motor(name='right', rc_channel=config.right_motor_channel)
@@ -23,8 +24,9 @@ class Mothership(ApplicationSession):
         self.left_motor = Motor(name='left', rc_channel=10)
         self.right_motor = Motor(name='right', rc_channel=11)
 
-        self.reverse_speed = 0
-        self.forward_speed = 0
+        # TODO determine if the trim required is a function of motor speed
+        self.trim = 0
+
         self.throttle = 0
         self.turn_speed = 0
         self.update_frequency = 10
@@ -37,11 +39,16 @@ class Mothership(ApplicationSession):
         """Register functions for access via RPC and start update loops
         """
         logger.info("Joined Crossbar Session")
+
+        # TODO add rpc methods to manually arm/disarm each motor for safety
+        # arming/disarming the rc controller could arm/disarm the motors
+        # as well as doing it from web interface
         self.left_motor.initialize()
         self.right_motor.initialize()
 
         await self.register(self.set_left_motor_speed, 'auv.set_left_motor_speed')
         await self.register(self.set_right_motor_speed, 'auv.set_right_motor_speed')
+        await self.register(self.set_trim, 'auv.set_trim')
         await self.register(self.forward_throttle, 'auv.forward_throttle')
         await self.register(self.reverse_throttle, 'auv.reverse_throttle')
         await self.register(self.move_right, 'auv.move_right')
@@ -59,6 +66,28 @@ class Mothership(ApplicationSession):
     def set_right_motor_speed(self, speed):
         self.right_motor.speed = int(speed)
 
+    def set_trim(self, trim):
+        self.trim = int(trim)
+        self._move()
+
+    def _move(self):
+        turn_speed = self.turn_speed + self.trim
+
+        # left turn
+        if turn_speed < 0:
+            self.right_motor.speed = self.throttle
+            self.left_motor.speed = round(self.throttle * ((100 - abs(turn_speed)) / 100))
+
+        # right turn
+        elif turn_speed > 0:
+            self.right_motor.speed = round(self.throttle * ((100 - abs(turn_speed)) / 100))
+            self.left_motor.speed = self.throttle
+
+        # straight
+        else:
+            self.right_motor.speed = self.throttle
+            self.left_motor.speed = self.throttle
+
     def move_right(self, turn_speed):
         """Adjust the speed of the turning side motor to induce a turn
 
@@ -67,23 +96,20 @@ class Mothership(ApplicationSession):
         """
         self.turn_speed = abs(int(turn_speed))
         logger.debug('Move right with speed {}'.format(turn_speed))
-        self.right_motor.speed = round(self.throttle * ((100 - self.turn_speed) / 100))
-        self.left_motor.speed = self.throttle
+        self._move()
 
     def move_left(self, turn_speed):
         """Adjust the speed of the turning side motor to induce a turn
         """
         logger.debug('Move left with speed {}'.format(turn_speed))
         self.turn_speed = -abs(int(turn_speed))
-        self.left_motor.speed = round(self.throttle * ((100 + self.turn_speed) / 100))
-        self.right_motor.speed = self.throttle
+        self._move()
 
     def move_center(self):
         """Remove any turn from the motors
         """
         self.turn_speed = 0
-        self.left_motor.speed = self.throttle
-        self.right_motor.speed = self.throttle
+        self._move()
 
     def rotate_right(self, speed):
         """Set motors in opposite direction to rotate craft
@@ -106,24 +132,12 @@ class Mothership(ApplicationSession):
     def forward_throttle(self, throttle):
         logger.debug('Setting forward throttle to {}'.format(throttle))
         self.throttle = abs(int(throttle))
-        if self.turn_speed > 0:
-            self.move_right(self.turn_speed)
-        elif self.turn_speed < 0:
-            self.move_left(self.turn_speed)
-        else:
-            self.left_motor.forward(self.throttle)
-            self.right_motor.forward(self.throttle)
+        self._move()
 
     def reverse_throttle(self, throttle):
         self.throttle = -(abs(int(throttle)))
         logger.debug('Move reverse with speed {}'.format(throttle))
-        if self.turn_speed > 0:
-            self.move_right(self.turn_speed)
-        elif self.turn_speed < 0:
-            self.move_left(self.turn_speed)
-        else:
-            self.left_motor.reverse(self.throttle)
-            self.right_motor.reverse(self.throttle)
+        self._move()
 
     def stop(self):
         logger.info('Stopping')
