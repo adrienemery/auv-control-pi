@@ -3,9 +3,9 @@ import os.path
 
 class PWM:
 
-    SYSFS_PWM_PATH_BASE = "/sys/class/pwm/pwmchip0/"
-    SYSFS_PWM_EXPORT_PATH = "/sys/class/pwm/pwmchip0/export"
-    SYSFS_PWM_UNEXPORT_PATH = "/sys/class/pwm/pwmchip0/unexport"
+    SYSFS_PWM_PATH_BASE = "/var/pwm/"
+    SYSFS_PWM_EXPORT_PATH = "/var/pwm/export"
+    SYSFS_PWM_UNEXPORT_PATH = "/var/pwm/unexport"
 
     def __init__(self, channel):
         self.channel = channel

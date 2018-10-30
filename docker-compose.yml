@@ -25,6 +25,7 @@ services:
     volumes:
       - .:/code
       - logvolume01:/var/log
+      - /sys/class/pwm/pwmchip0:/var/pwm
     command: python manage.py runauv
     links:
       - crossbar

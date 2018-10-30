@@ -74,8 +74,8 @@ class RCControler(ApplicationSession):
                 'rc_control.update',
                 {
                     'armed': self.armed,
-                    'throttle': self.ast_throttle_signal,
-                    'turn': self.self.last_turn_signal,
+                    'throttle': self.last_throttle_signal,
+                    'turn': self.last_turn_signal,
                 }
             )
             await asyncio.sleep(1 / self.update_frequency)
@@ -89,12 +89,12 @@ class RCControler(ApplicationSession):
             if rc_armed < ARMED_THRESHOLD and self.armed is True:
                 logger.info('RC Control Disarmed')
                 self.armed = False
-                self.call('auv.set_control_mode', 'manual')
+                # self.call('auv.set_control_mode', 'manual')
 
             elif rc_armed > ARMED_THRESHOLD and self.armed is False:
                 logger.info('RC Control Armed')
                 self.armed = True
-                self.call('auv.set_control_mode', 'rc')
+                # self.call('auv.set_control_mode', 'rc')
 
                 # TODO when initially armed it would be useful to force the user to zero
                 # the throttle and turn inputs before any new commands are registered
