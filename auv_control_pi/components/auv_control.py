@@ -49,6 +49,8 @@ class Mothership(ApplicationSession):
         await self.register(self.set_left_motor_speed, 'auv.set_left_motor_speed')
         await self.register(self.set_right_motor_speed, 'auv.set_right_motor_speed')
         await self.register(self.set_trim, 'auv.set_trim')
+        await self.register(self.trim_right, 'auv.trim_right')
+        await self.register(self.trim_left, 'auv.trim_left')
         await self.register(self.forward_throttle, 'auv.forward_throttle')
         await self.register(self.reverse_throttle, 'auv.reverse_throttle')
         await self.register(self.move_right, 'auv.move_right')
