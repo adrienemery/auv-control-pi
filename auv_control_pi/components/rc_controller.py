@@ -36,6 +36,7 @@ ARMED_THRESHOLD = 1500
 RC_THROTTLE_CHANNEL = 2
 RC_TURN_CHANNEL = 0
 RC_ARM_CHANNEL = 6
+RC_TRIM_CHANNEL = 3
 
 # the debounce range value is used to ignore changes in rc input
 # that are within the debounce range
@@ -53,6 +54,7 @@ class RCControler(ApplicationSession):
         self.last_throttle_signal = None
         self.last_turn_signal = None
         self.update_frequency = 10
+        self.trim_center = None
 
     def onConnect(self):
         logger.info('Connecting to {} as {}'.format(self.config.realm, 'rc_control'))
@@ -87,24 +89,32 @@ class RCControler(ApplicationSession):
             # check if the armed button is on/off
             rc_armed = int(self.rc_input.read(ch=RC_ARM_CHANNEL))
             if rc_armed < ARMED_THRESHOLD and self.armed is True:
-                logger.info('RC Control Disarmed')
+                logger.info('RC Control: Disarmed')
                 self.armed = False
-                # self.call('auv.set_control_mode', 'manual')
 
             elif rc_armed > ARMED_THRESHOLD and self.armed is False:
-                logger.info('RC Control Armed')
+                logger.info('RC Control: Armed')
                 self.armed = True
-                # self.call('auv.set_control_mode', 'rc')
+                self.trim_center = int(self.rc_input.read(RC_TRIM_CHANNEL))
 
-                # TODO when initially armed it would be useful to force the user to zero
-                # the throttle and turn inputs before any new commands are registered
-                # This will prevent connecting via the RC controller and having the throttle
-                # already engaged which could cause unexpected behaviour.
+            # TODO when initially armed it would be useful to force the user to zero
+            # the throttle and turn inputs before any new commands are registered
+            # This will prevent connecting via the RC controller and having the throttle
+            # already engaged which could cause unexpected behaviour.
 
             # only respond to commands when the rc is armed
             if self.armed:
                 rc_throttle = int(self.rc_input.read(ch=RC_THROTTLE_CHANNEL))
                 rc_turn = int(self.rc_input.read(ch=RC_TURN_CHANNEL))
+                rc_trim = int(self.rc_input.read(ch=RC_TRIM_CHANNEL))
+
+                if abs(rc_trim - self.trim_center) > DEBOUNCE_RANGE:
+                    if rc_trim > self.trim_center:
+                        self.trim_center = rc_trim
+                        self.call('auv.trim_right')
+                    else:
+                        self.trim_center = rc_trim
+                        self.call('auv.trim_left')
 
                 # only update if the signal has changed
                 if self.last_throttle_signal is not None and abs(rc_throttle - self.last_throttle_signal) > DEBOUNCE_RANGE:

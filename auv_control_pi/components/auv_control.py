@@ -69,6 +69,13 @@ class Mothership(ApplicationSession):
     def set_trim(self, trim):
         self.trim = int(trim)
         self._move()
+        # TODO save trim value to database
+
+    def trim_left(self):
+        self.set_trim(self.trim - 1)
+
+    def trim_right(self):
+        self.set_trim(self.trim + 1)
 
     def _move(self):
         turn_speed = self.turn_speed + self.trim
