@@ -1,24 +1,18 @@
-import json
+import os
 import logging
 import copy
 
-import curio
-import time
+import queue
+import struct
 
 try:
     import spidev
-    pi = True
 except ImportError:
-    pi = False
+    pass
+
+PI = os.getenv('PI', False)
+if not PI:
     logging.warning('Not running on Pi. You will not have access to GPS.')
-
-import math
-import queue
-import struct
-import navio.util
-
-from channels import Group
-
 
 waiting_header = 0
 msg_class = 1
@@ -190,69 +184,9 @@ class NavPosllhMsg:
         return '{}\n{}\n{}\n{}\n{}\n{}\n{}'.format(itow, lon, lat, heightEll, heightSea, horAcc, verAcc)
 
 
-if pi:
+if PI:
     ubl = U_blox()
     for ind in range(0, 10):
         ubl.enable_posllh()
 else:
     ubl = None
-
-
-class GPS:
-
-    def __init__(self):
-        self.lat = 49.2827
-        self.lon = -123.1207
-        self.height_ellipsoid = None
-        self.height_sea = None
-        self.horizontal_accruacy = None
-        self.vertiacl_accruracy = None
-
-    def _update(self, msg):
-        """
-        Update all local instance variables
-        """
-        if msg:
-            self.lat = msg.lat
-            self.lon = msg.lon
-            self.height_ellipsoid = msg.heightEll
-            self.height_sea = msg.heightSea
-            self.horizontal_accruacy = msg.horAcc
-            self.vertiacl_accruracy = msg.verAcc
-
-    def update(self):
-        if pi:
-            buffer = ubl.bus.xfer2([100])
-            for byt in buffer:
-                ubl.scan_ubx(byt)
-                if not ubl.mess_queue.empty():
-                    msg = ubl.parse_ubx()
-                    self._update(msg)
-
-        time.sleep(0.1)  # chill for a bit
-
-    async def broadcast(self):
-        """Broadcast gps data to group"""
-        Group('gps.update').send({
-                'lat': self.lat,
-                'lon': self.lon,
-                'heigh_sea': self.height_sea,
-                'height_ellipsoid': self.height_ellipsoid,
-                'horizontal_accruacy': self.horizontal_accruacy,
-                'vertiacl_accruracy': self.vertiacl_accruracy,
-            }
-        )
-        await curio.sleep(1)
-
-    async def run(self):
-        logging.warning('Starting GPS loop')
-        while True:
-            await curio.run_in_thread(self.update)
-            await self.broadcast()
-
-
-if __name__ == '__main__':
-    if pi:
-        navio.util.check_apm()
-    gps = GPS()
-    curio.run(gps.run())

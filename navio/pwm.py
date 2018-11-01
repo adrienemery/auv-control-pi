@@ -1,15 +1,15 @@
 import os.path
 
+SYSFS_PWM_PATH_BASE = os.getenv('SYSFS_PWM_PATH_BASE', '/sys/class/pwm/pwmchip0/')
+SYSFS_PWM_EXPORT_PATH = os.getenv('SYSFS_PWM_EXPORT_PATH', '/sys/class/pwm/pwmchip0/export')
+SYSFS_PWM_UNEXPORT_PATH = os.getenv('SYSFS_PWM_UNEXPORT_PATH', '/sys/class/pwm/pwmchip0/unexport')
+
 
 class PWM:
 
-    SYSFS_PWM_PATH_BASE = "/var/pwm/"
-    SYSFS_PWM_EXPORT_PATH = "/var/pwm/export"
-    SYSFS_PWM_UNEXPORT_PATH = "/var/pwm/unexport"
-
     def __init__(self, channel):
         self.channel = channel
-        self.channel_path = self.SYSFS_PWM_PATH_BASE + "pwm{}/".format(self.channel)
+        self.channel_path = SYSFS_PWM_PATH_BASE + "pwm{}/".format(self.channel)
         self.is_initialized = False
         self.is_enabled = False
 
@@ -23,15 +23,15 @@ class PWM:
     def deinitialize(self):
         if self.is_enabled:
             self.disable()
-        with open(self.SYSFS_PWM_UNEXPORT_PATH, "a") as pwm_unexport:
+        with open(SYSFS_PWM_UNEXPORT_PATH, "a") as pwm_unexport:
             pwm_unexport.write(str(self.channel))
 
     def initialize(self):
-        if not os.path.exists(self.SYSFS_PWM_PATH_BASE):
+        if not os.path.exists(SYSFS_PWM_PATH_BASE):
             raise OSError("rcio_pwm module wasn't loaded")
 
         if not os.path.exists(self.channel_path):
-            with open(self.SYSFS_PWM_EXPORT_PATH, "a") as pwm_export:
+            with open(SYSFS_PWM_EXPORT_PATH, "a") as pwm_export:
                 pwm_export.write(str(self.channel))
 
         self.is_initialized = True
