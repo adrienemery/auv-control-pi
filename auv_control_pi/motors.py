@@ -1,18 +1,11 @@
-import asyncio
+import os
 import logging
 import time
 from threading import Thread
 
 from navio.pwm import PWM
 
-try:
-    import spidev
-    pi = True
-except ImportError:
-    pi = False
-
-pi = True  # TODO make this an enviornment var
-
+pi = os.getenv('PI', False)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -66,10 +59,16 @@ class Motor:
 
         self.pwm = PWM(self.rc_channel - 1)
         self.initialized = False
+
+        # start the update loop in a thread
         Thread(target=self._update).start()
 
     def initialize(self):
-        """Must call to initialize the motor"""
+        """Must call to initialize the motor
+
+        We run the initialization sequence in a thread to avoid blocking
+        the caller since this can take a few seconds.
+        """
         Thread(target=self._initialize).start()
 
     def _initialize(self):
@@ -90,9 +89,15 @@ class Motor:
         self.initialized = True
 
     def _update(self):
+        """Set the duty cycle on the motor controllers
+
+        The ESC's need to get a signal sent consistently as a heartbeat
+        and thus have the duty cycle set every loop.
+        """
         while True:
             if pi and self.initialized:
                 self.pwm.set_duty_cycle(self.duty_cycle_ms)
+            # sleep a bit to avoid jitter in the speed
             time.sleep(0.1)
 
     @property

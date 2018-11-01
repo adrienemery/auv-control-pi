@@ -1,5 +1,5 @@
 autobahn==18.7.1
-Django==2.1
+Django==2.1.2
 django-solo==1.1.3
 envitro==0.4.2
 #pygc==1.0.0
