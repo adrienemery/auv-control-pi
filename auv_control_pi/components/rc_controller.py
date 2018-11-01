@@ -41,6 +41,7 @@ RC_TRIM_CHANNEL = 3
 # the debounce range value is used to ignore changes in rc input
 # that are within the debounce range
 DEBOUNCE_RANGE = 5
+TRIM_DEBOUNCE_RANGE = 2
 
 
 class RCControler(ApplicationSession):
@@ -78,6 +79,7 @@ class RCControler(ApplicationSession):
                     'armed': self.armed,
                     'throttle': self.last_throttle_signal,
                     'turn': self.last_turn_signal,
+                    'trim_center': self.trim_center
                 }
             )
             await asyncio.sleep(1 / self.update_frequency)
@@ -108,7 +110,13 @@ class RCControler(ApplicationSession):
                 rc_turn = int(self.rc_input.read(ch=RC_TURN_CHANNEL))
                 rc_trim = int(self.rc_input.read(ch=RC_TRIM_CHANNEL))
 
-                if abs(rc_trim - self.trim_center) > DEBOUNCE_RANGE:
+                # the rc controller doesn't have any "buttons" that can easily be used for trim
+                # however it does have builtin trim buttons that adjust the value being sent for
+                # a given control axis. We use the x-axis trim on the left joystick as a trim input
+                # button. By updating the trim center point we can track a change in either the
+                # left (negative) or right (posative) direction and treat it as a "button press"
+                # which we use to call the `trim_left` and `trim_right` commands.
+                if abs(rc_trim - self.trim_center) > TRIM_DEBOUNCE_RANGE:
                     if rc_trim > self.trim_center:
                         self.trim_center = rc_trim
                         self.call('auv.trim_right')

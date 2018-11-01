@@ -10,6 +10,7 @@ class Configuration(SingletonModel):
                                            max_digits=5, decimal_places=3)
     left_motor_channel = models.IntegerField(default=0)
     right_motor_channel = models.IntegerField(default=1)
+    trim = models.IntegerField(default=0)
     name = models.CharField(max_length=255, blank=True)
     address = models.CharField(max_length=255, blank=True)
     crossbar_url = models.CharField(max_length=255, default='ws://localhost:8000/ws')
@@ -20,3 +21,26 @@ class Configuration(SingletonModel):
 
     class Meta:
         verbose_name = "AUV Configuration"
+
+
+class AUVLog(models.Model):
+
+    timestamp = models.DateTimeField(auto_now_add=True)
+    left_motor_speed = models.IntegerField(blank=True, null=True)
+    left_motor_duty_cycle = models.IntegerField(blank=True, null=True)
+    right_motor_speed = models.IntegerField(blank=True, null=True)
+    right_motor_duty_cycle = models.IntegerField(blank=True, null=True)
+    throttle = models.IntegerField(blank=True, null=True)
+    turn_speed = models.IntegerField(blank=True, null=True)
+
+
+class GPSLog(models.Model):
+
+    timestamp = models.DateTimeField(auto_now_add=True)
+    lat = models.DecimalField(max_digits=9, decimal_places=6)
+    lon = models.DecimalField(max_digits=9, decimal_places=6)
+    height_sea = models.DecimalField(max_digits=9, decimal_places=6)
+    height_ellipsoid = models.DecimalField(max_digits=9, decimal_places=6)
+    horizontal_accruacy = models.DecimalField(max_digits=9, decimal_places=6)
+    vertiacl_accruracy = models.DecimalField(max_digits=9, decimal_places=6)
+

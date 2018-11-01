@@ -10,7 +10,6 @@ pi = os.getenv('PI', False)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
 T100 = 't100'
 SERVO = 'servo'
 

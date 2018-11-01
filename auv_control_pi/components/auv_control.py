@@ -1,23 +1,21 @@
 import asyncio
 import logging
 
-from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
-from ..models import Configuration
+from autobahn.asyncio.wamp import ApplicationSession
+from ..models import Configuration, AUVLog
 from ..motors import Motor
 
-
 logger = logging.getLogger(__name__)
+config = Configuration.get_solo()
 
 
-class Mothership(ApplicationSession):
+class AUV(ApplicationSession):
     """Main entry point for controling the Mothership and AUV
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.speed = 0
 
-        # config = Configuration.get_solo()
         # self.left_motor = Motor(name='left', rc_channel=config.left_motor_channel)
         # self.right_motor = Motor(name='right', rc_channel=config.right_motor_channel)
 
@@ -25,8 +23,9 @@ class Mothership(ApplicationSession):
         self.right_motor = Motor(name='right', rc_channel=11)
 
         # TODO determine if the trim required is a function of motor speed
-        self.trim = 0
 
+        # load the current trim value from the database
+        self.trim = config.trim
         self.throttle = 0
         self.turn_speed = 0
         self.update_frequency = 10
@@ -71,7 +70,10 @@ class Mothership(ApplicationSession):
     def set_trim(self, trim):
         self.trim = int(trim)
         self._move()
-        # TODO save trim value to database
+
+        # save trim value to database
+        config.trim = self.trim
+        config.save()
 
     def trim_left(self):
         self.set_trim(self.trim - 1)
@@ -169,4 +171,7 @@ class Mothership(ApplicationSession):
                 # 'timestamp': timezone.now().isoformat()
             }
             self.publish('auv.update', payload)
+
+            # log to database
+            AUVLog.objects.create(**payload)
             await asyncio.sleep(1 / self.update_frequency)
