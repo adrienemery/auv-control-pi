@@ -173,5 +173,5 @@ class AUV(ApplicationSession):
             self.publish('auv.update', payload)
 
             # log to database
-            AUVLog.objects.create(**payload)
+            # AUVLog.objects.create(**payload)
             await asyncio.sleep(1 / self.update_frequency)

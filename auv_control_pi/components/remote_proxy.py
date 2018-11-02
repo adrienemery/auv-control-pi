@@ -19,6 +19,9 @@ class RouterProxy:
 
     """
     rpc_proxy_list = [
+        'auv.set_trim',
+        'auv.trim_right',
+        'auv.trim_left',
         'auv.set_left_motor_speed',
         'auv.set_right_motor_speed',
         'auv.forward_throttle',

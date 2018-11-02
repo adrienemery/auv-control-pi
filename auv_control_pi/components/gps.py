@@ -22,13 +22,12 @@ class GPS(ApplicationSession):
         self.vertiacl_accruracy = None
 
     def onConnect(self):
-        logger.info('Connecting to {} as {}'.format(self.config.realm, 'auv'))
         self.join(realm=self.config.realm)
 
     async def onJoin(self, details):
         """Register functions for access via RPC and start update loops
         """
-        logger.info("Joined Crossbar Session")
+        logger.info("GPS Component: Joined Crossbar Session")
 
         # create subtasks
         loop = asyncio.get_event_loop()
@@ -55,14 +54,14 @@ class GPS(ApplicationSession):
                     msg = gps.ubl.parse_ubx()
                     self._update(msg)
 
-        payload = {
-            'lat': self.lat,
-            'lon': self.lon,
-            'height_sea': self.height_sea,
-            'height_ellipsoid': self.height_ellipsoid,
-            'horizontal_accruacy': self.horizontal_accruacy,
-            'vertiacl_accruracy': self.vertiacl_accruracy,
-        }
-        self.publish('gps.update', payload)
-        GPSLog.objects.create(**payload)
+            payload = {
+                'lat': self.lat,
+                'lon': self.lon,
+                'height_sea': self.height_sea,
+                'height_ellipsoid': self.height_ellipsoid,
+                'horizontal_accruacy': self.horizontal_accruacy,
+                'vertiacl_accruracy': self.vertiacl_accruracy,
+            }
+            self.publish('gps.update', payload)
+            GPSLog.objects.create(**payload)
         await asyncio.sleep(1)
