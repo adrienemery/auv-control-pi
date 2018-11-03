@@ -3,7 +3,8 @@ version: '3'
 services:
 
   crossbar:
-    image: crossbario/crossbar-armhf  # use the arm version on raspberry pi
+    # use the arm version on raspberry pi
+    image: crossbario/crossbar-armhf
     container_name: crossbar
     restart: always
     ports:
@@ -15,6 +16,9 @@ services:
     volumes:
       - .:/code
       - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
     ports:
       - "8000:8000"
     command: python manage.py runserver 0.0.0.0:8000  # need to run external port
@@ -22,9 +26,17 @@ services:
   auvcontrol:
     image: auv_control
     restart: always
+    environment:
+      - DB_NAME=/data/db.sqlite3
+      - PI=True
+      - SYSFS_PWM_PATH_BASE=/var/pwm/
+      - SYSFS_PWM_EXPORT_PATH=/var/pwm/export
+      - SYSFS_PWM_UNEXPORT_PATH=/var/pwm/unexport
     volumes:
       - .:/code
       - logvolume01:/var/log
+      - dbdata:/data
+      # need to mount host's pwm directory into writable dir
       - /sys/class/pwm/pwmchip0:/var/pwm
     command: python manage.py runauv
     links:
@@ -35,10 +47,28 @@ services:
   rccontrol:
     image: auv_control
     restart: always
+    environment:
+      - DB_NAME=/data/db.sqlite3
     volumes:
       - .:/code
       - logvolume01:/var/log
+      - dbdata:/data
     command: python manage.py runrc
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
+
+  remoteproxy:
+    image: auv_control
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
+    command: python manage.py runremote
     links:
       - crossbar
     depends_on:
@@ -47,6 +77,6 @@ services:
 volumes:
   logvolume01: {}
 
-  # used to persist model data between container recreation
-  data:
+  # use dbdata volume to persist model data between container recreation
+  dbdata:
     driver: local
