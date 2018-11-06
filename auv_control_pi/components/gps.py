@@ -3,17 +3,20 @@ import asyncio
 import logging
 
 from autobahn.asyncio import ApplicationSession
-from navio import gps
+from navio.gps import GPS
 from ..models import GPSLog
 
 logger = logging.getLogger(__name__)
 PI = os.getenv('PI', False)
 
 
-class GPS(ApplicationSession):
+class GPSComponent(ApplicationSession):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # initialize the gps
+        self.gps = GPS()
         self.lat = None
         self.lon = None
         self.height_ellipsoid = None
@@ -47,12 +50,9 @@ class GPS(ApplicationSession):
 
     async def update(self):
         if PI:
-            buffer = gps.ubl.bus.xfer2([100])
-            for byt in buffer:
-                gps.ubl.scan_ubx(byt)
-                if not gps.ubl.mess_queue.empty():
-                    msg = gps.ubl.parse_ubx()
-                    self._update(msg)
+            self.gps.update()
+
+            # TODO parse gps msg
 
             payload = {
                 'lat': self.lat,
