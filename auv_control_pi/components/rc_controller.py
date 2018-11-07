@@ -36,12 +36,10 @@ ARMED_THRESHOLD = 1500
 RC_THROTTLE_CHANNEL = 2
 RC_TURN_CHANNEL = 0
 RC_ARM_CHANNEL = 6
-RC_TRIM_CHANNEL = 3
 
 # the debounce range value is used to ignore changes in rc input
 # that are within the debounce range
 DEBOUNCE_RANGE = 5
-TRIM_DEBOUNCE_RANGE = 3
 
 
 class RCControler(ApplicationSession):
@@ -55,7 +53,6 @@ class RCControler(ApplicationSession):
         self.last_throttle_signal = None
         self.last_turn_signal = None
         self.update_frequency = 10
-        self.trim_center = None
 
     def onConnect(self):
         logger.info('Connecting to {} as {}'.format(self.config.realm, 'rc_control'))
@@ -79,7 +76,6 @@ class RCControler(ApplicationSession):
                     'armed': self.armed,
                     'throttle': self.last_throttle_signal,
                     'turn': self.last_turn_signal,
-                    'trim_center': self.trim_center
                 }
             )
             await asyncio.sleep(1 / self.update_frequency)
@@ -98,7 +94,6 @@ class RCControler(ApplicationSession):
             elif rc_armed > ARMED_THRESHOLD and self.armed is False:
                 logger.info('RC Control: Armed')
                 self.armed = True
-                self.trim_center = int(self.rc_input.read(RC_TRIM_CHANNEL))
 
             # TODO when initially armed it would be useful to force the user to zero
             # the throttle and turn inputs before any new commands are registered
@@ -109,21 +104,6 @@ class RCControler(ApplicationSession):
             if self.armed:
                 rc_throttle = int(self.rc_input.read(ch=RC_THROTTLE_CHANNEL))
                 rc_turn = int(self.rc_input.read(ch=RC_TURN_CHANNEL))
-                rc_trim = int(self.rc_input.read(ch=RC_TRIM_CHANNEL))
-
-                # the rc controller doesn't have any "buttons" that can easily be used for trim
-                # however it does have builtin trim buttons that adjust the value being sent for
-                # a given control axis. We use the x-axis trim on the left joystick as a trim input
-                # button. By updating the trim center point we can track a change in either the
-                # left (negative) or right (posative) direction and treat it as a "button press"
-                # which we use to call the `trim_left` and `trim_right` commands.
-                if abs(rc_trim - self.trim_center) > TRIM_DEBOUNCE_RANGE:
-                    if rc_trim > self.trim_center:
-                        self.trim_center = rc_trim
-                        self.call('auv.trim_right')
-                    else:
-                        self.trim_center = rc_trim
-                        self.call('auv.trim_left')
 
                 # only update if the signal has changed
                 if self.last_throttle_signal is not None and abs(rc_throttle - self.last_throttle_signal) > DEBOUNCE_RANGE:
