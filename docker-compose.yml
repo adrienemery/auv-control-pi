@@ -23,6 +23,21 @@ services:
       - "8000:8000"
     command: python manage.py runserver 0.0.0.0:8000  # need to run external port
 
+  gps:
+    image: auv_control
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
+    command: python manage.py rungps
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
+
   auvcontrol:
     image: auv_control
     restart: always
