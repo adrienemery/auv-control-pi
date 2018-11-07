@@ -35,6 +35,8 @@ class RouterProxy:
 
     published_topics_proxy = [
         'auv.update',
+        'rc_control.update',
+        'gps.update',
         # add topics here to expose them to remote router
     ]
 

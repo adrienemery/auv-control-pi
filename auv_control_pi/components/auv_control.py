@@ -27,6 +27,7 @@ class AUV(ApplicationSession):
         # load the current trim value from the database
         self.trim = config.trim
         self.throttle = 0
+        self.throttle_limit = 90
         self.turn_speed = 0
         self.update_frequency = 10
 
@@ -142,12 +143,16 @@ class AUV(ApplicationSession):
 
     def forward_throttle(self, throttle):
         logger.debug('Setting forward throttle to {}'.format(throttle))
-        self.throttle = abs(int(throttle))
+        throttle = abs(int(throttle))
+        throttle = min(self.throttle_limit, throttle)
+        self.throttle = throttle
         self._move()
 
     def reverse_throttle(self, throttle):
-        self.throttle = -(abs(int(throttle)))
         logger.debug('Move reverse with speed {}'.format(throttle))
+        throttle = -(abs(int(throttle)))
+        throttle = max(-self.throttle_limit, throttle)
+        self.throttle = throttle
         self._move()
 
     def stop(self):
@@ -168,6 +173,7 @@ class AUV(ApplicationSession):
                 'right_motor_duty_cycle': self.right_motor.duty_cycle_ms,
                 'throttle': self.throttle,
                 'turn_speed': self.turn_speed,
+                'trim': self.trim,
                 # 'timestamp': timezone.now().isoformat()
             }
             self.publish('auv.update', payload)

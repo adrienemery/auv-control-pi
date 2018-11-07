@@ -16,7 +16,11 @@ class GPSComponent(ApplicationSession):
         super().__init__(*args, **kwargs)
 
         # initialize the gps
-        self.gps = GPS()
+        if PI:
+            self.gps = GPS()
+        else:
+            self.gps = None
+        self.status = None
         self.lat = None
         self.lon = None
         self.height_ellipsoid = None
@@ -32,9 +36,19 @@ class GPSComponent(ApplicationSession):
         """
         logger.info("GPS Component: Joined Crossbar Session")
 
+        # register rpc methods
+        await self.register(self.get_position, 'gps.get_position')
+        await self.register(self.get_status(), 'gps.get_status')
+
         # create subtasks
         loop = asyncio.get_event_loop()
         loop.create_task(self.update())
+
+    def get_position(self):
+        return self.lat, self.lon
+
+    def get_status(self):
+        return self.status
 
     def _update(self, msg):
         """
@@ -49,11 +63,7 @@ class GPSComponent(ApplicationSession):
             self.vertiacl_accruracy = msg.verAcc
 
     async def update(self):
-        if PI:
-            self.gps.update()
-
-            # TODO parse gps msg
-
+        while True:
             payload = {
                 'lat': self.lat,
                 'lon': self.lon,
@@ -63,5 +73,10 @@ class GPSComponent(ApplicationSession):
                 'vertiacl_accruracy': self.vertiacl_accruracy,
             }
             self.publish('gps.update', payload)
-            GPSLog.objects.create(**payload)
-        await asyncio.sleep(1)
+
+            if PI:
+                self.gps.update()
+                GPSLog.objects.create(**payload)
+                # TODO parse gps msg
+
+            await asyncio.sleep(1)

@@ -41,7 +41,7 @@ RC_TRIM_CHANNEL = 3
 # the debounce range value is used to ignore changes in rc input
 # that are within the debounce range
 DEBOUNCE_RANGE = 5
-TRIM_DEBOUNCE_RANGE = 2
+TRIM_DEBOUNCE_RANGE = 3
 
 
 class RCControler(ApplicationSession):
@@ -92,6 +92,7 @@ class RCControler(ApplicationSession):
             rc_armed = int(self.rc_input.read(ch=RC_ARM_CHANNEL))
             if rc_armed < ARMED_THRESHOLD and self.armed is True:
                 logger.info('RC Control: Disarmed')
+                self.call('auv.stop')
                 self.armed = False
 
             elif rc_armed > ARMED_THRESHOLD and self.armed is False:
@@ -159,9 +160,3 @@ class RCControler(ApplicationSession):
 
             # wait a little bit until reading in a new command to prevent twichy controls
             await asyncio.sleep(0.05)
-
-
-if __name__ == '__main__':
-    time.sleep(7)  # delay startup to ensure wamp router is up and running
-    runner = ApplicationRunner(url='ws://crossbar:8080/ws', realm='realm1')
-    runner.run(RCControler)

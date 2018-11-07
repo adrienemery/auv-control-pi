@@ -4,10 +4,6 @@ import time
 from collections import deque, namedtuple
 from pygc import great_distance
 
-from navio.gps import GPS
-from navio.mpu9250 import MPU9250
-from .ahrs import AHRS
-
 
 logger = logging.getLogger(__name__)
 Point = namedtuple('Point', ['lat', 'lng'])
@@ -40,20 +36,12 @@ class Navitgator:
     # at the waypoint
     TARGET_DISTANCE = 60  # meters
 
-    def __init__(self, gps, left_motor=None, right_motor=None, update_period=1):
+    def __init__(self):
         self._running = False
-        self.imu = MPU9250()
-        self.imu.initialize()
-        self.ahrs = AHRS()
-        self.gps = GPS()
-        self.gps.update()
-        self.left_motor = left_motor
-        self.right_motor = right_motor
         self.target_waypoint = None
         self.target_heading = None
-        self.current_location = Point(self.gps.lat, self.gps.lon)
-
-        self.update_period = update_period
+        self.current_location = None
+        self.update_period = 10
         self.arrived = False
         self.waypoints = deque()
 
@@ -78,11 +66,6 @@ class Navitgator:
     def update(self):
         """Update the current position and heading
         """
-        accel, gyro, mag = self.imu.getMotion9()
-        self.ahrs.update(accel, gyro, mag)
-        self.gps.update()
-        self.current_location = Point(self.gps.lat, self.gps.lon)
-
         if self.target_waypoint and not self.arrived:
             # check if we have hit our target
             if self.distance_to_target <= self.TARGET_DISTANCE:
@@ -104,7 +87,7 @@ class Navitgator:
     def steer(self):
         # calculate heading error to feed into PID
         # TODO test the handedness of this
-        heading_error = self.target_heading - self.ahrs.heading
+        heading_error = self.target_heading - self.heading
         if abs(heading_error > 5):  # TODO make this an adjustable config value on in database
             # take action to ajdust the speed of each motor to steer
             # in the direction to minimize the heading error
