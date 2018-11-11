@@ -6,6 +6,6 @@
 __pycache__/
 config.ini
 *.sqlite3
-
+*.pyc
 
 auv_control_pi/bin/*
