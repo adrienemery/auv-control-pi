@@ -48,9 +48,8 @@ class GPS:
         if self.msg.name() == "NAV_POSLLH":
             outstr = str(self.msg).split(",")[1:]
             outstr = "".join(outstr)
-            print(outstr)
 
         if self.msg.name() == "NAV_STATUS":
             outstr = str(self.msg).split(",")[1:2]
             outstr = "".join(outstr)
-            print(outstr)
+        return self.msg

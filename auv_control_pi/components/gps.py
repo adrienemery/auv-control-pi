@@ -57,7 +57,12 @@ class GPSComponent(ApplicationSession):
         """
         Update all local instance variables
         """
-        if msg:
+        if self.msg.name() == "NAV_POSLLH":
+            outstr = str(self.msg).split(",")[1:]
+            outstr = "".join(outstr)
+            print(outstr)
+            print(msg._fields)
+
             self.lat = msg.lat / 10e6
             self.lng = msg.lon / 10e6
             self.height_ellipsoid = msg.heightEll
@@ -68,8 +73,8 @@ class GPSComponent(ApplicationSession):
     async def update(self):
         while True:
             if PI:
-                self.gps.update()
-                self._parse_msg(self.msg)
+                msg = self.gps.update()
+                self._parse_msg(msg)
 
             payload = {
                 'lat': self.lat,
@@ -82,8 +87,8 @@ class GPSComponent(ApplicationSession):
 
             self.publish('gps.update', payload)
 
-            if PI:
+            if PI and self.lat is not None:
                 payload['lon'] = payload.pop('lng')
                 GPSLog.objects.create(**payload)
-            
+
             await asyncio.sleep(1)
