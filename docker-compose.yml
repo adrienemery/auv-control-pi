@@ -19,6 +19,7 @@ services:
       - dbdata:/data
     environment:
       - DB_NAME=/data/db.sqlite3
+      - PI=True
     ports:
       - "8000:8000"
     command: python manage.py runserver 0.0.0.0:8000  # need to run external port
@@ -32,6 +33,7 @@ services:
       - dbdata:/data
     environment:
       - DB_NAME=/data/db.sqlite3
+      - PI=True
     command: python manage.py rungps
     links:
       - crossbar
@@ -47,6 +49,7 @@ services:
       - dbdata:/data
     environment:
       - DB_NAME=/data/db.sqlite3
+      - PI=True
     command: python manage.py runahrs
     links:
       - crossbar
@@ -79,6 +82,7 @@ services:
     restart: always
     environment:
       - DB_NAME=/data/db.sqlite3
+      - PI=True
     volumes:
       - .:/code
       - logvolume01:/var/log
@@ -98,6 +102,7 @@ services:
       - dbdata:/data
     environment:
       - DB_NAME=/data/db.sqlite3
+      - PI=True
     command: python manage.py runnav
     links:
       - crossbar
@@ -115,6 +120,7 @@ services:
       - dbdata:/data
     environment:
       - DB_NAME=/data/db.sqlite3
+      - PI=True
     command: python manage.py runremote
     links:
       - crossbar
