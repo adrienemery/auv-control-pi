@@ -17,12 +17,15 @@ class GPSComponent(ApplicationSession):
 
         # initialize the gps
         if PI:
+            self.lat = None
+            self.lng = None
             self.gps = GPS()
         else:
             self.gps = None
+            self.lat = 49.2827
+            self.lng = -123.1207
+
         self.status = None
-        self.lat = None
-        self.lon = None
         self.height_ellipsoid = None
         self.height_sea = None
         self.horizontal_accruacy = None
@@ -38,14 +41,14 @@ class GPSComponent(ApplicationSession):
 
         # register rpc methods
         await self.register(self.get_position, 'gps.get_position')
-        await self.register(self.get_status(), 'gps.get_status')
+        await self.register(self.get_status, 'gps.get_status')
 
         # create subtasks
         loop = asyncio.get_event_loop()
         loop.create_task(self.update())
 
     def get_position(self):
-        return self.lat, self.lon
+        return self.lat, self.lng
 
     def get_status(self):
         return self.status
@@ -56,7 +59,7 @@ class GPSComponent(ApplicationSession):
         """
         if msg:
             self.lat = msg.lat
-            self.lon = msg.lon
+            self.lng = msg.lon
             self.height_ellipsoid = msg.heightEll
             self.height_sea = msg.heightSea
             self.horizontal_accruacy = msg.horAcc
@@ -66,7 +69,7 @@ class GPSComponent(ApplicationSession):
         while True:
             payload = {
                 'lat': self.lat,
-                'lon': self.lon,
+                'lng': self.lng,
                 'height_sea': self.height_sea,
                 'height_ellipsoid': self.height_ellipsoid,
                 'horizontal_accruacy': self.horizontal_accruacy,

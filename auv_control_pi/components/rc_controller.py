@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import time
-from autobahn.asyncio.wamp import ApplicationSession, ApplicationRunner
+from autobahn.asyncio.wamp import ApplicationSession
 from navio.rcinput import RCInput
 
 
