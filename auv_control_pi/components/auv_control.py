@@ -123,6 +123,10 @@ class AUV(ApplicationSession):
         self.turn_speed = 0
         self._move()
 
+    def set_turn_val(self, turn_speed):
+        self.turn_speed = turn_speed
+        self._move()
+
     def rotate_right(self, speed):
         """Set motors in opposite direction to rotate craft
         """

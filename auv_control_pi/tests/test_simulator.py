@@ -3,7 +3,7 @@ import pytest
 from pygc import great_circle
 
 from ..simulator import Navitgator, GPS, Motor, AHRS
-from ..navigation import Point, distance_to_point
+from ..components.navigation import Point, distance_to_point
 
 
 @pytest.fixture
