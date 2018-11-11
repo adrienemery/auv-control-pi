@@ -23,6 +23,7 @@ import asyncio
 import time
 import logging
 from autobahn.asyncio.wamp import ApplicationSession
+from navio.lsm9ds1 import LSM9DS1
 from ..config import config
 
 
