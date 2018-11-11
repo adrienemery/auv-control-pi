@@ -93,8 +93,9 @@ class Navitgator(ApplicationSession):
         self.current_location = Point(lat=data.get('lat'), lng=data.get('lng'))
 
     def set_pid_values(self, kP, kI, kD, debounce=None):
-        self.pid.Kp, self.pid.Ki, self.pid.Kd = kP, kI, kD
-        print(kP, kI, kD)
+        self.pid.Kp = kP
+        self.pid.Ki = kI
+        self.pid.Kd = kD
         config.kP, config.kI, config.kD = kP, kI, kD
         if debounce is not None:
             config.pid_error_debounce = debounce

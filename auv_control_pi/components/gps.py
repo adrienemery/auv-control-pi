@@ -57,18 +57,18 @@ class GPSComponent(ApplicationSession):
         """
         Update all local instance variables
         """
-        if self.msg.name() == "NAV_POSLLH":
-            outstr = str(self.msg).split(",")[1:]
+        if msg.name() == "NAV_POSLLH":
+            outstr = str(msg).split(",")[1:]
             outstr = "".join(outstr)
-            print(outstr)
-            print(msg._fields)
+            # print(outstr)
+            # print(msg._fields)
 
-            self.lat = msg.lat / 10e6
-            self.lng = msg.lon / 10e6
-            self.height_ellipsoid = msg.heightEll
-            self.height_sea = msg.heightSea
-            self.horizontal_accruacy = msg.horAcc
-            self.vertiacl_accruracy = msg.verAcc
+            self.lat = msg.Latitude / 10e6
+            self.lng = msg.Longitude / 10e6
+            self.height_ellipsoid = msg.height
+            self.height_sea = msg.hMSL
+            self.horizontal_accruacy = msg.hAcc
+            self.vertiacl_accruracy = msg.vAcc
 
     async def update(self):
         while True:
@@ -89,6 +89,6 @@ class GPSComponent(ApplicationSession):
 
             if PI and self.lat is not None:
                 payload['lon'] = payload.pop('lng')
-                GPSLog.objects.create(**payload)
+                # GPSLog.objects.create(**payload)
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.1)

@@ -27,10 +27,12 @@ services:
   gps:
     image: auv_control
     restart: always
+    privileged: true
     volumes:
       - .:/code
       - logvolume01:/var/log
       - dbdata:/data
+      - /dev:/dev
     environment:
       - DB_NAME=/data/db.sqlite3
       - PI=True
@@ -43,10 +45,12 @@ services:
   ahrs:
     image: auv_control
     restart: always
+    privileged: true
     volumes:
       - .:/code
       - logvolume01:/var/log
       - dbdata:/data
+      - /dev:/dev
     environment:
       - DB_NAME=/data/db.sqlite3
       - PI=True
