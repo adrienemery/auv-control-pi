@@ -19,9 +19,12 @@ stopfunc (responding to time or user input) tells it to stop
 waitfunc provides an optional delay between readings to accommodate hardware or to avoid hogging
 the CPU in a threaded environment. It sets magbias to the mean values of x,y,z
 """
-
+import asyncio
 import time
 import logging
+from autobahn.asyncio.wamp import ApplicationSession
+from ..config import config
+
 
 from math import sqrt, atan2, asin, degrees, radians
 
@@ -36,20 +39,41 @@ def micros():
     return time.perf_counter() * 1e6
 
 
-class AHRS(object):
+class AHRS(ApplicationSession):
     """Class provides sensor fusion allowing heading, pitch and roll to be extracted.
 
     This uses the Madgwick algorithm.
     The update method must be called peiodically.
     """
-    declination = 0                         # Optional offset for true north. A +ve value adds to heading
 
-    def __init__(self):
-        self.magbias = (0, 0, 0)            # local magnetic bias factors: set from calibration
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.imu = LSM9DS1()
+        self.imu.initialize()
+        self.declination = config.declination
+        self.magbias = (config.magbias_x, config.magbias_y, config.magbias_z)            # local magnetic bias factors: set from calibration
         self.start_time = None              # Time between updates
         self.q = [1.0, 0.0, 0.0, 0.0]       # vector to hold quaternion
         gyro_meas_error = radians(270)         # Original code indicates this leads to a 2 sec response time
         self.beta = sqrt(3.0 / 4.0) * gyro_meas_error  # compute beta (see README)
+        self.update_frequency = 10
+        self.update_timer = time.perf_counter()
+
+    def onConnect(self):
+        logger.info('Connecting to {} as {}'.format(self.config.realm, 'rc_control'))
+        self.join(realm=self.config.realm)
+
+    async def onJoin(self, details):
+        """Register functions for access via RPC and start update loops
+        """
+        logger.info("Joined Crossbar Session")
+
+        await self.register(self.get_heading, 'ahrs.get_heading')
+        await self.register(self.set_declination, 'ahrs.set_declination')
+
+        # create subtasks
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.update())
 
     def calibrate(self, getxyz, stopfunc, waitfunc=None):
         magmax = list(getxyz())             # Initialise max and min lists with current values
@@ -62,6 +86,14 @@ class AHRS(object):
                 magmax[x] = max(magmax[x], magxyz[x])
                 magmin[x] = min(magmin[x], magxyz[x])
         self.magbias = tuple(map(lambda a, b: (a + b)/2, magmin, magmax))
+
+    def get_heading(self):
+        return self.heading
+
+    def set_declination(self, val):
+        self.declination = val
+        config.declination = self.declination
+        config.save()
 
     @property
     def heading(self):
@@ -134,13 +166,14 @@ class AHRS(object):
         norm = 1 / sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)    # normalise quaternion
         self.q = q1 * norm, q2 * norm, q3 * norm, q4 * norm
 
-    def update(self, accel, gyro, mag):
+    async def update(self):
         """Must call to get updated data
 
         3-tuples (x, y, z) for accel, gyro and mag data
 
         This should be called at a frequency between 10-50 Hz
         """
+        accel, gyro, mag = self.imu.getMotion9()
         mx, my, mz = (mag[x] - self.magbias[x] for x in range(3))  # Units irrelevant (normalised)
         ax, ay, az = accel  # Units irrelevant (normalised)
         gx, gy, gz = (radians(x) for x in gyro)  # Units deg/s
@@ -236,35 +269,12 @@ class AHRS(object):
         norm = 1 / sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)    # normalise quaternion
         self.q = q1 * norm, q2 * norm, q3 * norm, q4 * norm
 
+        if time.perf_counter() - self.update_timer > (1 / self.update_frequency):
+            self.update_timer = time.perf_counter()
+            self.publish('ahrs.update', {
+                'heading': self.heading,
+                'roll': self.roll,
+                'pitch': self.pitch,
+            })
 
-if __name__ == '__main__':
-    from navio.mpu9250 import MPU9250
-    imu = MPU9250()
-    imu.initialize()
-    ahrs = AHRS()
-
-    start_calibration = time.perf_counter()
-
-    def stop_fnc():
-        if time.perf_counter() - start_calibration > 10:
-            return True
-        else:
-            print('{}s remaining'.format(int(10 - time.perf_counter() - start_calibration)))
-            return False
-
-    def get_mag_xyz():
-        imu.read_mag()
-        return imu.magnetometer_data
-
-    print('Calibrating Magnatometer: rotate the device in all directions')
-    ahrs.calibrate(getxyz=get_mag_xyz, stopfunc=stop_fnc)
-    count = 1
-    while True:
-        count += 1
-        accel, gyro, mag = imu.getMotion9()
-        ahrs.update(accel, gyro, mag)
-        time.sleep(0.02)
-        if count % 10 == 0:
-            print('roll: {:.2f}, pitch: {:.2f}, heading: {:.2f}'.format(ahrs.roll,
-                                                                        ahrs.pitch,
-                                                                        ahrs.heading))
+        await asyncio.sleep(0.01)
