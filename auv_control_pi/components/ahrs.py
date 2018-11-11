@@ -92,7 +92,7 @@ class AHRS(ApplicationSession):
         return self.heading
 
     def set_declination(self, val):
-        self.declination = val
+        self.declination = float(val)
         config.declination = self.declination
         config.save()
 
@@ -278,5 +278,5 @@ class AHRS(ApplicationSession):
                     'roll': self.roll,
                     'pitch': self.pitch,
                 })
-    
+
             await asyncio.sleep(0.01)

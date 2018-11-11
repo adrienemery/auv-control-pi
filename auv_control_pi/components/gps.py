@@ -53,13 +53,13 @@ class GPSComponent(ApplicationSession):
     def get_status(self):
         return self.status
 
-    def _update(self, msg):
+    def _parse_msg(self, msg):
         """
         Update all local instance variables
         """
         if msg:
-            self.lat = msg.lat
-            self.lng = msg.lon
+            self.lat = msg.lat / 10e6
+            self.lng = msg.lon / 10e6
             self.height_ellipsoid = msg.heightEll
             self.height_sea = msg.heightSea
             self.horizontal_accruacy = msg.horAcc
@@ -67,6 +67,10 @@ class GPSComponent(ApplicationSession):
 
     async def update(self):
         while True:
+            if PI:
+                self.gps.update()
+                self._parse_msg(self.msg)
+
             payload = {
                 'lat': self.lat,
                 'lng': self.lng,
@@ -75,11 +79,11 @@ class GPSComponent(ApplicationSession):
                 'horizontal_accruacy': self.horizontal_accruacy,
                 'vertiacl_accruracy': self.vertiacl_accruracy,
             }
+
             self.publish('gps.update', payload)
 
             if PI:
-                self.gps.update()
+                payload['lon'] = payload.pop('lng')
                 GPSLog.objects.create(**payload)
-                # TODO parse gps msg
-
+            
             await asyncio.sleep(1)
