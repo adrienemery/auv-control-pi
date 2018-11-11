@@ -38,6 +38,21 @@ services:
     depends_on:
       - crossbar
 
+  ahrs:
+    image: auv_control
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
+    command: python manage.py runahrs
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
+
   auvcontrol:
     image: auv_control
     restart: always
@@ -73,6 +88,23 @@ services:
       - crossbar
     depends_on:
       - crossbar
+
+  nav:
+    image: auv_control
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
+    command: python manage.py runnav
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
+      - ahrs
+      - gps
 
   remoteproxy:
     image: auv_control
