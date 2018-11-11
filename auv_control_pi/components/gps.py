@@ -58,11 +58,6 @@ class GPSComponent(ApplicationSession):
         Update all local instance variables
         """
         if msg.name() == "NAV_POSLLH":
-            outstr = str(msg).split(",")[1:]
-            outstr = "".join(outstr)
-            # print(outstr)
-            # print(msg._fields)
-
             self.lat = msg.Latitude / 10e6
             self.lng = msg.Longitude / 10e6
             self.height_ellipsoid = msg.height

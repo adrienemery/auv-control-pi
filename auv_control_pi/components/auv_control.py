@@ -55,6 +55,7 @@ class AUV(ApplicationSession):
         await self.register(self.reverse_throttle, 'auv.reverse_throttle')
         await self.register(self.move_right, 'auv.move_right')
         await self.register(self.move_left, 'auv.move_left')
+        await self.register(self.set_turn_val, 'auv.set_turn_val')
         await self.register(self.move_center, 'auv.move_center')
         await self.register(self.stop, 'auv.stop')
 
