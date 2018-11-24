@@ -19,22 +19,43 @@ class RouterProxy:
 
     """
     rpc_proxy_list = [
+        'auv.set_left_motor_speed',
+        'auv.set_right_motor_speed',
         'auv.set_trim',
         'auv.trim_right',
         'auv.trim_left',
-        'auv.set_left_motor_speed',
-        'auv.set_right_motor_speed',
         'auv.forward_throttle',
         'auv.reverse_throttle',
         'auv.move_right',
         'auv.move_left',
+        'auv.set_turn_val',
         'auv.move_center',
         'auv.stop',
+
+        'ahrs.get_heading',
+        'ahrs.set_declination',
+        'ahrs.get_declination',
+
+        'gps.get_position',
+        'gps.get_status',
+
+        'nav.move_to_waypoint',
+        'nav.start_trip',
+        'nav.pause_trip',
+        'nav.stop',
+        'nav.set_pid_values',
+        'nav.get_pid_values',
+        'nav.get_target_waypoint_distance',
+        'nav.set_target_waypoint_distance',
+        'nav.set_navigation_values',
+
         # add rpc's here to expose them to remote router
     ]
 
     published_topics_proxy = [
         'auv.update',
+        'nav.update',
+        'ahrs.update',
         'rc_control.update',
         'gps.update',
         # add topics here to expose them to remote router
