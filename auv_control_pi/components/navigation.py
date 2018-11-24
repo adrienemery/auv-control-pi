@@ -102,10 +102,10 @@ class Navitgator(ApplicationSession):
         self.current_location = Point(lat=data.get('lat'), lng=data.get('lng'))
 
     def set_pid_values(self, kP, kI, kD, debounce=None):
-        self.pid.Kp = kP
-        self.pid.Ki = kI
-        self.pid.Kd = kD
-        config.kP, config.kI, config.kD = kP, kI, kD
+        self.pid.Kp = float(kP)
+        self.pid.Ki = float(kI)
+        self.pid.Kd = float(kD)
+        config.kP, config.kI, config.kD = self.pid.Kp, self.pid.Ki, self.pid.Kd
         if debounce is not None:
             config.pid_error_debounce = debounce
         config.save()
@@ -132,6 +132,7 @@ class Navitgator(ApplicationSession):
         config.save()
 
     def move_to_waypoint(self, waypoint):
+        self.pid.auto_mode = True
         if isinstance(waypoint, dict):
             waypoint = Point(**waypoint)
         logger.info('Moving to waypint: {}'.format(waypoint))
@@ -152,6 +153,7 @@ class Navitgator(ApplicationSession):
 
     def stop(self):
         self.enabled = False
+        self.pid.auto_mode = False
         self.call('auv.stop')
 
     async def _update(self):

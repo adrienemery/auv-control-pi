@@ -110,7 +110,7 @@ class AHRS(ApplicationSession):
         if SIMULATION:
             return 0
         else:
-            return 180 + degrees(atan2(2.0 * (self.q[1] * self.q[2] + self.q[0] * self.q[3]),
+            return 180 + degrees(radians(self.declination) + atan2(2.0 * (self.q[1] * self.q[2] + self.q[0] * self.q[3]),
                 self.q[0] * self.q[0] + self.q[1] * self.q[1] - self.q[2] * self.q[2] - self.q[3] * self.q[3]))
 
     @property
