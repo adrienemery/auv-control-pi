@@ -88,6 +88,7 @@ class RCControler(ApplicationSession):
             rc_armed = int(self.rc_input.read(ch=RC_ARM_CHANNEL))
             if rc_armed < ARMED_THRESHOLD and self.armed is True:
                 logger.info('RC Control: Disarmed')
+                self.call('nav.stop')
                 self.call('auv.stop')
                 self.armed = False
 

@@ -146,14 +146,14 @@ class AUV(ApplicationSession):
         self.left_motor.reverse(speed)
         self.right_motor.forward(speed)
 
-    def forward_throttle(self, throttle):
+    def forward_throttle(self, throttle=0):
         logger.debug('Setting forward throttle to {}'.format(throttle))
         throttle = abs(int(throttle))
         throttle = min(self.throttle_limit, throttle)
         self.throttle = throttle
         self._move()
 
-    def reverse_throttle(self, throttle):
+    def reverse_throttle(self, throttle=0):
         logger.debug('Move reverse with speed {}'.format(throttle))
         throttle = -(abs(int(throttle)))
         throttle = max(-self.throttle_limit, throttle)

@@ -8,6 +8,7 @@ from ..models import GPSLog
 
 logger = logging.getLogger(__name__)
 PI = os.getenv('PI', False)
+SIMULATION = os.getenv('SIMULATION', False)
 
 
 class GPSComponent(ApplicationSession):
@@ -16,14 +17,15 @@ class GPSComponent(ApplicationSession):
         super().__init__(*args, **kwargs)
 
         # initialize the gps
-        if PI:
+        if PI and not SIMULATION:
             self.lat = None
             self.lng = None
             self.gps = GPS()
-        else:
+        elif SIMULATION:
             self.gps = None
-            self.lat = 49.2827
-            self.lng = -123.1207
+            # Jericho Beach
+            self.lat = 49.273008
+            self.lng = -123.179694
 
         self.status = None
         self.height_ellipsoid = None
