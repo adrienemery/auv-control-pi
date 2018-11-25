@@ -27,6 +27,7 @@ class Configuration(SingletonModel):
     magbias_y = models.FloatField(blank=True, default=0)
     magbias_z = models.FloatField(blank=True, default=0)
     declination = models.FloatField(blank=True, default=0)
+    board_offset = models.FloatField(blank=True, default=0)
 
     def __str__(self):
         return 'AUV Configuration'

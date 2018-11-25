@@ -45,6 +45,14 @@ def micros():
     return time.perf_counter() * 1e6
 
 
+def clamp_angle(deg):
+    if deg > 180:
+        deg -= 360
+    if deg < -180:
+        deg += 360
+    return deg
+
+
 class AHRS(ApplicationSession):
     """Class provides sensor fusion allowing heading, pitch and roll to be extracted.
 
@@ -58,6 +66,7 @@ class AHRS(ApplicationSession):
             self.imu = LSM9DS1()
             self.imu.initialize()
         self.declination = config.declination
+        self.board_offset = config.board_offset
         self.magbias = (config.magbias_x, config.magbias_y, config.magbias_z)            # local magnetic bias factors: set from calibration
         self.start_time = None              # Time between updates
         self.q = [1.0, 0.0, 0.0, 0.0]       # vector to hold quaternion
@@ -109,9 +118,14 @@ class AHRS(ApplicationSession):
     def heading(self):
         if SIMULATION:
             return 0
+
         else:
-            return 180 + degrees(radians(self.declination) + atan2(2.0 * (self.q[1] * self.q[2] + self.q[0] * self.q[3]),
-                self.q[0] * self.q[0] + self.q[1] * self.q[1] - self.q[2] * self.q[2] - self.q[3] * self.q[3]))
+            heading = 180 + degrees(radians(self.declination) + atan2(2.0 * (self.q[1] * self.q[2] + self.q[0] * self.q[3]),
+                    self.q[0] * self.q[0] + self.q[1] * self.q[1] - self.q[2] * self.q[2] - self.q[3] * self.q[3]))
+            heading = clamp_angle(heading)
+            heading += self.board_offset
+            heading = clamp_angle(heading)
+            return heading
 
     @property
     def pitch(self):

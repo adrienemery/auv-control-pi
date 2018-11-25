@@ -87,7 +87,7 @@ class RouterProxy:
 
                 async def __call__(self, *args, **kwargs):
                     logger.debug('Proxying RPC {}, with args {}, kwargs {}'.format(self._rpc_name, args, kwargs))
-                    await self._local_session.call(self._rpc_name, *args, **kwargs)
+                    return await self._local_session.call(self._rpc_name, *args, **kwargs)
 
             await self.remote_session.register(RPCProxy(self.local_session, rpc_name), rpc_name)
 
