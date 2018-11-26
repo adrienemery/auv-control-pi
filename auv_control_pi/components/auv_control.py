@@ -1,9 +1,9 @@
 import asyncio
 import logging
 
-from autobahn.asyncio.wamp import ApplicationSession
 from ..models import Configuration, AUVLog
 from ..motors import Motor
+from ..wamp import ApplicationSession, rpc
 
 logger = logging.getLogger(__name__)
 config = Configuration.get_solo()
@@ -12,6 +12,8 @@ config = Configuration.get_solo()
 class AUV(ApplicationSession):
     """Main entry point for controling the Mothership and AUV
     """
+
+    update_method = 'update'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -38,37 +40,22 @@ class AUV(ApplicationSession):
     async def onJoin(self, details):
         """Register functions for access via RPC and start update loops
         """
-        logger.info("Joined Crossbar Session")
-
-        # TODO add rpc methods to manually arm/disarm each motor for safety
         # arming/disarming the rc controller could arm/disarm the motors
         # as well as doing it from web interface
         self.left_motor.initialize()
         self.right_motor.initialize()
 
-        await self.register(self.set_left_motor_speed, 'auv.set_left_motor_speed')
-        await self.register(self.set_right_motor_speed, 'auv.set_right_motor_speed')
-        await self.register(self.set_trim, 'auv.set_trim')
-        await self.register(self.trim_right, 'auv.trim_right')
-        await self.register(self.trim_left, 'auv.trim_left')
-        await self.register(self.forward_throttle, 'auv.forward_throttle')
-        await self.register(self.reverse_throttle, 'auv.reverse_throttle')
-        await self.register(self.move_right, 'auv.move_right')
-        await self.register(self.move_left, 'auv.move_left')
-        await self.register(self.set_turn_val, 'auv.set_turn_val')
-        await self.register(self.move_center, 'auv.move_center')
-        await self.register(self.stop, 'auv.stop')
+        super().onJoin(details)
 
-        # create subtasks
-        loop = asyncio.get_event_loop()
-        loop.create_task(self._update())
-
+    @rpc('auv.set_left_motor_speed')
     def set_left_motor_speed(self, speed):
         self.left_motor.speed = int(speed)
 
+    @rpc('auv.set_right_motor_speed')
     def set_right_motor_speed(self, speed):
         self.right_motor.speed = int(speed)
 
+    @rpc('auv.set_trim')
     def set_trim(self, trim):
         self.trim = int(trim)
         self._move()
@@ -77,9 +64,11 @@ class AUV(ApplicationSession):
         config.trim = self.trim
         config.save()
 
+    @rpc('auv.trim_left')
     def trim_left(self):
         self.set_trim(self.trim - 1)
 
+    @rpc('auv.trim_right')
     def trim_right(self):
         self.set_trim(self.trim + 1)
 
@@ -101,6 +90,7 @@ class AUV(ApplicationSession):
             self.right_motor.speed = self.throttle
             self.left_motor.speed = self.throttle
 
+    @rpc('auv.move_right')
     def move_right(self, turn_speed):
         """Adjust the speed of the turning side motor to induce a turn
 
@@ -111,6 +101,7 @@ class AUV(ApplicationSession):
         logger.debug('Move right with speed {}'.format(turn_speed))
         self._move()
 
+    @rpc('auv.move_left')
     def move_left(self, turn_speed):
         """Adjust the speed of the turning side motor to induce a turn
         """
@@ -118,16 +109,19 @@ class AUV(ApplicationSession):
         self.turn_speed = -abs(int(turn_speed))
         self._move()
 
+    @rpc('auv.move_center')
     def move_center(self):
         """Remove any turn from the motors
         """
         self.turn_speed = 0
         self._move()
 
+    @rpc('auv.set_turn_val')
     def set_turn_val(self, turn_speed):
         self.turn_speed = turn_speed
         self._move()
 
+    @rpc('auv.rotate_right')
     def rotate_right(self, speed):
         """Set motors in opposite direction to rotate craft
         """
@@ -137,6 +131,7 @@ class AUV(ApplicationSession):
         self.left_motor.forward(speed)
         self.right_motor.reverse(speed)
 
+    @rpc('auv.rotate_left')
     def rotate_left(self, speed):
         """Set motors in opposite direction to rotate craft
         """
@@ -146,6 +141,7 @@ class AUV(ApplicationSession):
         self.left_motor.reverse(speed)
         self.right_motor.forward(speed)
 
+    @rpc('auv.forward_throttle')
     def forward_throttle(self, throttle=0):
         logger.debug('Setting forward throttle to {}'.format(throttle))
         throttle = abs(int(throttle))
@@ -153,6 +149,7 @@ class AUV(ApplicationSession):
         self.throttle = throttle
         self._move()
 
+    @rpc('auv.reverse_throttle')
     def reverse_throttle(self, throttle=0):
         logger.debug('Move reverse with speed {}'.format(throttle))
         throttle = -(abs(int(throttle)))
@@ -160,6 +157,7 @@ class AUV(ApplicationSession):
         self.throttle = throttle
         self._move()
 
+    @rpc('auv.stop')
     def stop(self):
         logger.info('Stopping')
         self.throttle = 0
@@ -167,7 +165,7 @@ class AUV(ApplicationSession):
         self.left_motor.stop()
         self.right_motor.stop()
 
-    async def _update(self):
+    async def update(self):
         """Publish current state to anyone listening
         """
         while True:

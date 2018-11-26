@@ -21,9 +21,8 @@ the CPU in a threaded environment. It sets magbias to the mean values of x,y,z
 """
 import os
 import asyncio
-import time
 import logging
-from autobahn.asyncio.wamp import ApplicationSession
+from ..wamp import ApplicationSession, rpc
 
 PI = os.getenv('PI', False)
 
@@ -32,25 +31,10 @@ if PI:
 
 from ..config import config
 from math import sqrt, atan2, asin, degrees, radians
+from ..utils import micros, elapsed_micros, clamp_angle
 
 logger = logging.getLogger(__name__)
 SIMULATION = os.getenv('SIMULATION', False)
-
-
-def elapsed_micros(start_time_us):
-    return (time.perf_counter() * 1e6) - start_time_us
-
-
-def micros():
-    return time.perf_counter() * 1e6
-
-
-def clamp_angle(deg):
-    """Rotate angle back to be within [0, 360]
-    """
-    n_rotations = deg // 360
-    deg -= 360 * n_rotations
-    return deg
 
 
 class AHRS(ApplicationSession):
@@ -60,6 +44,8 @@ class AHRS(ApplicationSession):
     The update method must be called peiodically.
     """
 
+    name = 'AHRS'
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not SIMULATION:
@@ -67,7 +53,8 @@ class AHRS(ApplicationSession):
             self.imu.initialize()
         self.declination = config.declination
         self.board_offset = config.board_offset
-        self.magbias = (config.magbias_x, config.magbias_y, config.magbias_z)            # local magnetic bias factors: set from calibration
+        # local magnetic bias factors: set from calibration
+        self.magbias = (config.magbias_x, config.magbias_y, config.magbias_z)
         self.start_time = None              # Time between updates
         self.q = [1.0, 0.0, 0.0, 0.0]       # vector to hold quaternion
         gyro_meas_error = radians(270)         # Original code indicates this leads to a 2 sec response time
@@ -75,21 +62,8 @@ class AHRS(ApplicationSession):
         self.update_frequency = 10
 
     def onConnect(self):
-        logger.info('Connecting to {} as {}'.format(self.config.realm, 'ahrs'))
+        logger.info('Connecting to {} as {}'.format(self.config.realm, self.name))
         self.join(realm=self.config.realm)
-
-    async def onJoin(self, details):
-        """Register functions for access via RPC and start update loops
-        """
-        logger.info("Joined Crossbar Session")
-
-        await self.register(self.get_heading, 'ahrs.get_heading')
-        await self.register(self.set_declination, 'ahrs.set_declination')
-        await self.register(self.get_declination, 'ahrs.get_declination')
-
-        # create subtasks
-        loop = asyncio.get_event_loop()
-        loop.create_task(self.update())
 
     def calibrate(self, getxyz, stopfunc, waitfunc=None):
         magmax = list(getxyz())             # Initialise max and min lists with current values
@@ -103,12 +77,15 @@ class AHRS(ApplicationSession):
                 magmin[x] = min(magmin[x], magxyz[x])
         self.magbias = tuple(map(lambda a, b: (a + b)/2, magmin, magmax))
 
+    @rpc('ahrs.get_heading')
     def get_heading(self):
         return self.heading
 
+    @rpc('ahrs.get_declination')
     def get_declination(self):
         return config.declination
 
+    @rpc('ahrs.set_declination')
     def set_declination(self, val):
         self.declination = float(val)
         config.declination = self.declination

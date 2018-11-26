@@ -2,9 +2,9 @@ import os
 import asyncio
 import logging
 
-from autobahn.asyncio import ApplicationSession
 from navio.gps import GPS
 from ..models import GPSLog
+from ..wamp import ApplicationSession, rpc
 
 logger = logging.getLogger(__name__)
 PI = os.getenv('PI', False)
@@ -12,6 +12,7 @@ SIMULATION = os.getenv('SIMULATION', False)
 
 
 class GPSComponent(ApplicationSession):
+    name = 'gps'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -36,22 +37,11 @@ class GPSComponent(ApplicationSession):
     def onConnect(self):
         self.join(realm=self.config.realm)
 
-    async def onJoin(self, details):
-        """Register functions for access via RPC and start update loops
-        """
-        logger.info("GPS Component: Joined Crossbar Session")
-
-        # register rpc methods
-        await self.register(self.get_position, 'gps.get_position')
-        await self.register(self.get_status, 'gps.get_status')
-
-        # create subtasks
-        loop = asyncio.get_event_loop()
-        loop.create_task(self.update())
-
+    @rpc('gps.get_position')
     def get_position(self):
         return self.lat, self.lng
 
+    @rpc('gps.get_status')
     def get_status(self):
         return self.status
 

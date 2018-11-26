@@ -1,55 +1,16 @@
 import os
 import asyncio
 import logging
+from collections import deque
 
-from collections import deque, namedtuple
-from pygc import great_distance
-from autobahn.asyncio.wamp import ApplicationSession
 from simple_pid import PID
 
 from auv_control_pi.config import config
+from auv_control_pi.utils import Point, distance_to_point, heading_to_point, get_error_angle
+from auv_control_pi.wamp import ApplicationSession, rpc, subscribe
 
 SIMULATION = os.getenv('SIMULATION', False)
 logger = logging.getLogger(__name__)
-Point = namedtuple('Point', ['lat', 'lng'])
-
-
-def heading_to_point(point_a, point_b):
-    """Calculate heading between two points
-    """
-    result = great_distance(start_latitude=point_a.lat,
-                            start_longitude=point_a.lng,
-                            end_latitude=point_b.lat,
-                            end_longitude=point_b.lng)
-    return int(result['azimuth'])
-
-
-def distance_to_point(point_a, point_b):
-    """Calculate distance between to points
-    """
-    result = great_distance(start_latitude=point_a.lat,
-                            start_longitude=point_a.lng,
-                            end_latitude=point_b.lat,
-                            end_longitude=point_b.lng)
-    return int(result['distance'])
-
-
-def get_error_angle(target, heading):
-    """Calculate error angle between -180 to 180 between target and heading angles
-
-    If normalized is True then the result will be scaled to -1 to 1
-    """
-    error = heading - target
-    abs_error = abs(target - heading)
-
-    if abs_error == 180:
-        return abs_error
-    elif abs_error < 180:
-        return error
-    elif heading > target:
-        return abs_error - 360
-    else:
-        return 360 - abs_error
 
 
 class Navitgator(ApplicationSession):
@@ -75,32 +36,15 @@ class Navitgator(ApplicationSession):
         logger.info('Connecting to {} as {}'.format(self.config.realm, 'navigation'))
         self.join(realm=self.config.realm)
 
-    async def onJoin(self, details):
-        """Register functions for access via RPC and start update loops
-        """
-        logger.info("Joined Crossbar Session")
-        await self.subscribe(self._update_ahrs, 'ahrs.update')
-        await self.subscribe(self._update_gps, 'gps.update')
-        await self.register(self.move_to_waypoint, 'nav.move_to_waypoint')
-        await self.register(self.start_trip, 'nav.start_trip')
-        await self.register(self.pause_trip, 'nav.pause_trip')
-        await self.register(self.stop, 'nav.stop')
-        await self.register(self.set_pid_values, 'nav.set_pid_values')
-        await self.register(self.get_pid_values, 'nav.get_pid_values')
-        await self.register(self.get_target_waypoint_distance, 'nav.get_target_waypoint_distance')
-        await self.register(self.set_target_waypoint_distance, 'nav.set_target_waypoint_distance')
-        await self.register(self.set_navigation_values, 'nav.set_navigation_values')
-
-        # create subtasks
-        loop = asyncio.get_event_loop()
-        loop.create_task(self._update())
-
+    @subscribe('ahrs.update')
     def _update_ahrs(self, data):
         self.heading = data.get('heading', None)
 
+    @subscribe('gps.update')
     def _update_gps(self, data):
         self.current_location = Point(lat=data.get('lat'), lng=data.get('lng'))
 
+    @rpc('nav.set_pid_values')
     def set_pid_values(self, kP, kI, kD, debounce=None):
         self.pid.Kp = float(kP)
         self.pid.Ki = float(kI)
@@ -110,6 +54,7 @@ class Navitgator(ApplicationSession):
             config.pid_error_debounce = debounce
         config.save()
 
+    @rpc('nav.get_pid_values')
     def get_pid_values(self):
         return {
             'kP': self.pid.Kp,
@@ -118,19 +63,23 @@ class Navitgator(ApplicationSession):
             'debounce': config.pid_error_debounce
         }
 
+    @rpc('nav.get_target_waypoint_distance')
     def get_target_waypoint_distance(self):
         return {
             'target_waypoint_distance': config.target_waypoint_distance
         }
 
+    @rpc('nav.get_target_waypoint_distance')
     def set_target_waypoint_distance(self, target_waypoint_distance):
         config.target_waypoint_distance = target_waypoint_distance
         config.save()
 
+    @rpc('nav.set_navigation_values')
     def set_navigation_values(self, target_waypoint_distance):
         config.target_waypoint_distance = target_waypoint_distance
         config.save()
 
+    @rpc('nav.move_to_waypoint')
     def move_to_waypoint(self, waypoint):
         self.pid.auto_mode = True
         if isinstance(waypoint, dict):
@@ -141,22 +90,25 @@ class Navitgator(ApplicationSession):
         self.target_heading = heading_to_point(self.current_location, waypoint)
         self.enabled = True
 
+    @rpc('nav.start_trip')
     def start_trip(self, waypoints=None):
         if waypoints:
             self.waypoints = deque(waypoints)
         self.move_to_waypoint(self.waypoints.popleft())
 
+    @rpc('nav.pause_trip')
     def pause_trip(self):
         # push the current waypoint back on the stack
         self.waypoints.appendleft(self.target_waypoint)
         self.target_waypoint = None
 
+    @rpc('nav.stop')
     def stop(self):
         self.enabled = False
         self.pid.auto_mode = False
         self.call('auv.stop')
 
-    async def _update(self):
+    async def update(self):
         """Update the current position and heading
         """
         while True:
@@ -193,7 +145,7 @@ class Navitgator(ApplicationSession):
             })
             await asyncio.sleep(1 / self.update_frequency)
 
-    def _steer(self):
+    def _asteer(self):
         """Calculate heading error to feed into PID
         """
         # TODO think about how often should we update the target heading?
