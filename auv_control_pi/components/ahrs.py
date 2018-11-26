@@ -46,10 +46,10 @@ def micros():
 
 
 def clamp_angle(deg):
-    if deg > 180:
-        deg -= 360
-    if deg < -180:
-        deg += 360
+    """Rotate angle back to be within [0, 360]
+    """
+    n_rotations = deg // 360
+    deg -= 360 * n_rotations
     return deg
 
 
@@ -120,10 +120,11 @@ class AHRS(ApplicationSession):
             return 0
 
         else:
-            heading = 180 + degrees(radians(self.declination) + atan2(2.0 * (self.q[1] * self.q[2] + self.q[0] * self.q[3]),
-                    self.q[0] * self.q[0] + self.q[1] * self.q[1] - self.q[2] * self.q[2] - self.q[3] * self.q[3]))
-            heading = clamp_angle(heading)
-            heading += self.board_offset
+            offset = self.declination + self.board_offset
+            heading = (
+                180 + degrees(radians(offset) + atan2(2.0 * (self.q[1] * self.q[2] + self.q[0] * self.q[3]),
+                self.q[0] * self.q[0] + self.q[1] * self.q[1] - self.q[2] * self.q[2] - self.q[3] * self.q[3]))
+            )
             heading = clamp_angle(heading)
             return heading
 
