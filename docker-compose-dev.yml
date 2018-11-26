@@ -2,19 +2,20 @@ version: '3'
 
 services:
 
+#  auvwamp:
+#    image: adrienemery/auv-wamp:latest
+#    restart: always
+#    ports:
+#      - "9090:8080"
+#    environment:
+#      - TOKEN_VALIDATION_URL=http://auvapi:8000/api/auth/validate-token
+
   crossbar:
-    image: crossbario/crossbar  # use the arm version on raspberry pi
+    image: crossbario/crossbar
     container_name: crossbar
     restart: always
     ports:
       - "8090:8080"
-
-  crossbarremote:
-    image: crossbario/crossbar  # use the arm version on raspberry pi
-    container_name: crossbarremote
-    restart: always
-    ports:
-      - "9090:8080"
 
   admin:
     image: auv_control
@@ -26,7 +27,7 @@ services:
     environment:
       - DB_NAME=/data/db.sqlite3
     ports:
-      - "8000:8000"
+      - "9000:8000"
     command: python manage.py runserver 0.0.0.0:8000  # need to run external port
 
   auvcontrol:
@@ -38,11 +39,62 @@ services:
       - dbdata:/data
     environment:
       - DB_NAME=/data/db.sqlite3
+      - SIMULATION=True
     command: python manage.py runauv
     links:
       - crossbar
     depends_on:
       - crossbar
+
+  gps:
+    image: auv_control
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
+      - SIMULATION=True
+    command: python manage.py rungps
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
+
+  nav:
+    image: auv_control
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
+      - SIMULATION=True
+
+    command: python manage.py runnav
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
+
+  ahrs:
+    image: auv_control
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
+      - SIMULATION=True
+    command: python manage.py runahrs
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
+
 
   remoteproxy:
     image: auv_control
@@ -56,10 +108,10 @@ services:
     command: python manage.py runremote
     links:
       - crossbar
-      - crossbarremote
+#      - auvwamp
     depends_on:
       - crossbar
-      - crossbarremote
+#      - auvwamp
 
 volumes:
   logvolume01: {}
