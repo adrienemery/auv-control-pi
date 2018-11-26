@@ -2,6 +2,11 @@ import logging
 
 from autobahn.asyncio.component import Component, run
 from ..config import config
+from .ahrs import AHRS
+from .auv_control import AUV
+from .gps import GPSComponent
+from .navigation import Navitgator
+
 
 logger = logging.getLogger(__name__)
 
@@ -18,23 +23,18 @@ class RouterProxy:
     "re-publish" them to the remote WAMP router.
 
     """
-    rpc_proxy_list = [
-        'auv.set_trim',
-        'auv.trim_right',
-        'auv.trim_left',
-        'auv.set_left_motor_speed',
-        'auv.set_right_motor_speed',
-        'auv.forward_throttle',
-        'auv.reverse_throttle',
-        'auv.move_right',
-        'auv.move_left',
-        'auv.move_center',
-        'auv.stop',
-        # add rpc's here to expose them to remote router
+    rpc_proxy_classes = [
+        AHRS,
+        GPSComponent,
+        AUV,
+        Navitgator
     ]
-
     published_topics_proxy = [
         'auv.update',
+        'nav.update',
+        'ahrs.update',
+        'rc_control.update',
+        'gps.update',
         # add topics here to expose them to remote router
     ]
 
@@ -49,12 +49,20 @@ class RouterProxy:
         # self.remote_wamp.on('challenge', self.on_remote_challenge)
         self.local_wamp.on('join', self.join_local)
 
+    @property
+    def rpc_proxy_list(self):
+        rpcs = []
+        for cls in self.rpc_proxy_classes:
+            rpcs.extend(cls.rpc_uris())
+        return rpcs
+
     async def register_rpc_proxies(self):
         """Register RPC methods on remote router that mirror RPC's on the local router
 
         This allows a remote component to call RPC's on the local WAMP router.
         """
         for rpc_name in self.rpc_proxy_list:
+            logger.debug('Registering RPC to Proxy: {}'.format(rpc_name))
 
             class RPCProxy:
 
@@ -64,7 +72,7 @@ class RouterProxy:
 
                 async def __call__(self, *args, **kwargs):
                     logger.debug('Proxying RPC {}, with args {}, kwargs {}'.format(self._rpc_name, args, kwargs))
-                    await self._local_session.call(self._rpc_name, *args, **kwargs)
+                    return await self._local_session.call(self._rpc_name, *args, **kwargs)
 
             await self.remote_session.register(RPCProxy(self.local_session, rpc_name), rpc_name)
 

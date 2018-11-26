@@ -19,9 +19,46 @@ services:
       - dbdata:/data
     environment:
       - DB_NAME=/data/db.sqlite3
+      - PI=True
     ports:
       - "8000:8000"
     command: python manage.py runserver 0.0.0.0:8000  # need to run external port
+
+  gps:
+    image: auv_control
+    restart: always
+    privileged: true
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+      - /dev:/dev
+    environment:
+      - DB_NAME=/data/db.sqlite3
+      - PI=True
+    command: python manage.py rungps
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
+
+  ahrs:
+    image: auv_control
+    restart: always
+    privileged: true
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+      - /dev:/dev
+    environment:
+      - DB_NAME=/data/db.sqlite3
+      - PI=True
+    command: python manage.py runahrs
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
 
   auvcontrol:
     image: auv_control
@@ -49,6 +86,7 @@ services:
     restart: always
     environment:
       - DB_NAME=/data/db.sqlite3
+      - PI=True
     volumes:
       - .:/code
       - logvolume01:/var/log
@@ -59,6 +97,24 @@ services:
     depends_on:
       - crossbar
 
+  nav:
+    image: auv_control
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
+      - PI=True
+    command: python manage.py runnav
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
+      - ahrs
+      - gps
+
   remoteproxy:
     image: auv_control
     restart: always
@@ -68,6 +124,7 @@ services:
       - dbdata:/data
     environment:
       - DB_NAME=/data/db.sqlite3
+      - PI=True
     command: python manage.py runremote
     links:
       - crossbar

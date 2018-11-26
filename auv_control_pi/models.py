@@ -16,6 +16,19 @@ class Configuration(SingletonModel):
     crossbar_url = models.CharField(max_length=255, default='ws://localhost:8000/ws')
     crossbar_realm = models.CharField(max_length=255, default='realm1')
 
+    # auto pilot config vars
+    kP = models.FloatField(blank=True, default=1)
+    kI = models.FloatField(blank=True, default=0)
+    kD = models.FloatField(blank=True, default=0)
+    target_waypoint_distance = models.FloatField(blank=True, default=60)
+    pid_error_debounce = models.FloatField(blank=True, default=5)
+
+    magbias_x = models.FloatField(blank=True, default=0)
+    magbias_y = models.FloatField(blank=True, default=0)
+    magbias_z = models.FloatField(blank=True, default=0)
+    declination = models.FloatField(blank=True, default=0)
+    board_offset = models.FloatField(blank=True, default=0)
+
     def __str__(self):
         return 'AUV Configuration'
 

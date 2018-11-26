@@ -19,37 +19,51 @@ stopfunc (responding to time or user input) tells it to stop
 waitfunc provides an optional delay between readings to accommodate hardware or to avoid hogging
 the CPU in a threaded environment. It sets magbias to the mean values of x,y,z
 """
-
-import time
+import os
+import asyncio
 import logging
+from ..wamp import ApplicationSession, rpc
 
+PI = os.getenv('PI', False)
+
+if PI:
+    from navio.lsm9ds1 import LSM9DS1
+
+from ..config import config
 from math import sqrt, atan2, asin, degrees, radians
+from ..utils import micros, elapsed_micros, clamp_angle
 
 logger = logging.getLogger(__name__)
+SIMULATION = os.getenv('SIMULATION', False)
 
 
-def elapsed_micros(start_time_us):
-    return (time.perf_counter() * 1e6) - start_time_us
-
-
-def micros():
-    return time.perf_counter() * 1e6
-
-
-class AHRS(object):
+class AHRS(ApplicationSession):
     """Class provides sensor fusion allowing heading, pitch and roll to be extracted.
 
     This uses the Madgwick algorithm.
     The update method must be called peiodically.
     """
-    declination = 0                         # Optional offset for true north. A +ve value adds to heading
 
-    def __init__(self):
-        self.magbias = (0, 0, 0)            # local magnetic bias factors: set from calibration
+    name = 'AHRS'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not SIMULATION:
+            self.imu = LSM9DS1()
+            self.imu.initialize()
+        self.declination = config.declination
+        self.board_offset = config.board_offset
+        # local magnetic bias factors: set from calibration
+        self.magbias = (config.magbias_x, config.magbias_y, config.magbias_z)
         self.start_time = None              # Time between updates
         self.q = [1.0, 0.0, 0.0, 0.0]       # vector to hold quaternion
         gyro_meas_error = radians(270)         # Original code indicates this leads to a 2 sec response time
         self.beta = sqrt(3.0 / 4.0) * gyro_meas_error  # compute beta (see README)
+        self.update_frequency = 10
+
+    def onConnect(self):
+        logger.info('Connecting to {} as {}'.format(self.config.realm, self.name))
+        self.join(realm=self.config.realm)
 
     def calibrate(self, getxyz, stopfunc, waitfunc=None):
         magmax = list(getxyz())             # Initialise max and min lists with current values
@@ -63,17 +77,44 @@ class AHRS(object):
                 magmin[x] = min(magmin[x], magxyz[x])
         self.magbias = tuple(map(lambda a, b: (a + b)/2, magmin, magmax))
 
+    @rpc('ahrs.get_heading')
+    def get_heading(self):
+        return self.heading
+
+    @rpc('ahrs.get_declination')
+    def get_declination(self):
+        return config.declination
+
+    @rpc('ahrs.set_declination')
+    def set_declination(self, val):
+        self.declination = float(val)
+        config.declination = self.declination
+        config.save()
+
     @property
     def heading(self):
-        return self.declination + degrees(atan2(2.0 * (self.q[1] * self.q[2] + self.q[0] * self.q[3]),
-            self.q[0] * self.q[0] + self.q[1] * self.q[1] - self.q[2] * self.q[2] - self.q[3] * self.q[3]))
+        if SIMULATION:
+            return 0
+
+        else:
+            offset = self.declination + self.board_offset
+            heading = (
+                180 + degrees(radians(offset) + atan2(2.0 * (self.q[1] * self.q[2] + self.q[0] * self.q[3]),
+                self.q[0] * self.q[0] + self.q[1] * self.q[1] - self.q[2] * self.q[2] - self.q[3] * self.q[3]))
+            )
+            heading = clamp_angle(heading)
+            return heading
 
     @property
     def pitch(self):
+        if SIMULATION:
+            return 0
         return degrees(-asin(2.0 * (self.q[1] * self.q[3] - self.q[0] * self.q[2])))
 
     @property
     def roll(self):
+        if SIMULATION:
+            return 0
         return degrees(atan2(2.0 * (self.q[0] * self.q[1] + self.q[2] * self.q[3]),
             self.q[0] * self.q[0] - self.q[1] * self.q[1] - self.q[2] * self.q[2] + self.q[3] * self.q[3]))
 
@@ -134,19 +175,14 @@ class AHRS(object):
         norm = 1 / sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)    # normalise quaternion
         self.q = q1 * norm, q2 * norm, q3 * norm, q4 * norm
 
-    def update(self, accel, gyro, mag):
-        """Must call to get updated data
-
-        3-tuples (x, y, z) for accel, gyro and mag data
-
-        This should be called at a frequency between 10-50 Hz
-        """
+    def _update_data(self):
+        accel, gyro, mag = self.imu.getMotion9()
         mx, my, mz = (mag[x] - self.magbias[x] for x in range(3))  # Units irrelevant (normalised)
         ax, ay, az = accel  # Units irrelevant (normalised)
         gx, gy, gz = (radians(x) for x in gyro)  # Units deg/s
         if self.start_time is None:
             self.start_time = micros()  # First run
-        q1, q2, q3, q4 = (self.q[x] for x in range(4))   # short name local variable for readability
+        q1, q2, q3, q4 = (self.q[x] for x in range(4))  # short name local variable for readability
 
         # Auxiliary variables to avoid repeated arithmetic
         _2q1 = 2 * q1
@@ -170,7 +206,7 @@ class AHRS(object):
         norm = sqrt(ax * ax + ay * ay + az * az)
         if norm == 0:
             return  # handle NaN
-        norm = 1 / norm                     # use reciprocal for division
+        norm = 1 / norm  # use reciprocal for division
         ax *= norm
         ay *= norm
         az *= norm
@@ -178,8 +214,8 @@ class AHRS(object):
         # Normalise magnetometer measurement
         norm = sqrt(mx * mx + my * my + mz * mz)
         if norm == 0:
-            return                          # handle NaN
-        norm = 1 / norm                     # use reciprocal for division
+            return  # handle NaN
+        norm = 1 / norm  # use reciprocal for division
         mx *= norm
         my *= norm
         mz *= norm
@@ -197,24 +233,32 @@ class AHRS(object):
         _4bz = 2 * _2bz
 
         # Gradient descent algorithm corrective step
-        s1 = (-_2q3 * (2 * q2q4 - _2q1q3 - ax) + _2q2 * (2 * q1q2 + _2q3q4 - ay) - _2bz * q3 * (_2bx * (0.5 - q3q3 - q4q4)
-             + _2bz * (q2q4 - q1q3) - mx) + (-_2bx * q4 + _2bz * q2) * (_2bx * (q2q3 - q1q4) + _2bz * (q1q2 + q3q4) - my)
-             + _2bx * q3 * (_2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
+        s1 = (-_2q3 * (2 * q2q4 - _2q1q3 - ax) + _2q2 * (2 * q1q2 + _2q3q4 - ay) - _2bz * q3 * (
+                _2bx * (0.5 - q3q3 - q4q4)
+                + _2bz * (q2q4 - q1q3) - mx) + (-_2bx * q4 + _2bz * q2) * (
+                      _2bx * (q2q3 - q1q4) + _2bz * (q1q2 + q3q4) - my)
+              + _2bx * q3 * (_2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
 
-        s2 = (_2q4 * (2 * q2q4 - _2q1q3 - ax) + _2q1 * (2 * q1q2 + _2q3q4 - ay) - 4 * q2 * (1 - 2 * q2q2 - 2 * q3q3 - az)
-             + _2bz * q4 * (_2bx * (0.5 - q3q3 - q4q4) + _2bz * (q2q4 - q1q3) - mx) + (_2bx * q3 + _2bz * q1) * (_2bx * (q2q3 - q1q4)
-             + _2bz * (q1q2 + q3q4) - my) + (_2bx * q4 - _4bz * q2) * (_2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
+        s2 = (_2q4 * (2 * q2q4 - _2q1q3 - ax) + _2q1 * (2 * q1q2 + _2q3q4 - ay) - 4 * q2 * (
+                1 - 2 * q2q2 - 2 * q3q3 - az)
+              + _2bz * q4 * (_2bx * (0.5 - q3q3 - q4q4) + _2bz * (q2q4 - q1q3) - mx) + (_2bx * q3 + _2bz * q1) * (
+                      _2bx * (q2q3 - q1q4)
+                      + _2bz * (q1q2 + q3q4) - my) + (_2bx * q4 - _4bz * q2) * (
+                      _2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
 
-        s3 = (-_2q1 * (2 * q2q4 - _2q1q3 - ax) + _2q4 * (2 * q1q2 + _2q3q4 - ay) - 4 * q3 * (1 - 2 * q2q2 - 2 * q3q3 - az)
-             + (-_4bx * q3 - _2bz * q1) * (_2bx * (0.5 - q3q3 - q4q4) + _2bz * (q2q4 - q1q3) - mx)
-             + (_2bx * q2 + _2bz * q4) * (_2bx * (q2q3 - q1q4) + _2bz * (q1q2 + q3q4) - my)
-             + (_2bx * q1 - _4bz * q3) * (_2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
+        s3 = (-_2q1 * (2 * q2q4 - _2q1q3 - ax) + _2q4 * (2 * q1q2 + _2q3q4 - ay) - 4 * q3 * (
+                1 - 2 * q2q2 - 2 * q3q3 - az)
+              + (-_4bx * q3 - _2bz * q1) * (_2bx * (0.5 - q3q3 - q4q4) + _2bz * (q2q4 - q1q3) - mx)
+              + (_2bx * q2 + _2bz * q4) * (_2bx * (q2q3 - q1q4) + _2bz * (q1q2 + q3q4) - my)
+              + (_2bx * q1 - _4bz * q3) * (_2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
 
-        s4 = (_2q2 * (2 * q2q4 - _2q1q3 - ax) + _2q3 * (2 * q1q2 + _2q3q4 - ay) + (-_4bx * q4 + _2bz * q2) * (_2bx * (0.5 - q3q3 - q4q4)
-              + _2bz * (q2q4 - q1q3) - mx) + (-_2bx * q1 + _2bz * q3) * (_2bx * (q2q3 - q1q4) + _2bz * (q1q2 + q3q4) - my)
+        s4 = (_2q2 * (2 * q2q4 - _2q1q3 - ax) + _2q3 * (2 * q1q2 + _2q3q4 - ay) + (-_4bx * q4 + _2bz * q2) * (
+                _2bx * (0.5 - q3q3 - q4q4)
+                + _2bz * (q2q4 - q1q3) - mx) + (-_2bx * q1 + _2bz * q3) * (
+                      _2bx * (q2q3 - q1q4) + _2bz * (q1q2 + q3q4) - my)
               + _2bx * q2 * (_2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
 
-        norm = 1 / sqrt(s1 * s1 + s2 * s2 + s3 * s3 + s4 * s4)    # normalise step magnitude
+        norm = 1 / sqrt(s1 * s1 + s2 * s2 + s3 * s3 + s4 * s4)  # normalise step magnitude
         s1 *= norm
         s2 *= norm
         s3 *= norm
@@ -233,38 +277,27 @@ class AHRS(object):
         q2 += qDot2 * deltat
         q3 += qDot3 * deltat
         q4 += qDot4 * deltat
-        norm = 1 / sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)    # normalise quaternion
+        norm = 1 / sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)  # normalise quaternion
         self.q = q1 * norm, q2 * norm, q3 * norm, q4 * norm
 
+    async def update(self):
+        """Must call to get updated data
 
-if __name__ == '__main__':
-    from navio.mpu9250 import MPU9250
-    imu = MPU9250()
-    imu.initialize()
-    ahrs = AHRS()
+        3-tuples (x, y, z) for accel, gyro and mag data
 
-    start_calibration = time.perf_counter()
+        This should be called at a frequency between 10-50 Hz
+        """
+        while True:
+            if not SIMULATION:
+                self._update_data()
 
-    def stop_fnc():
-        if time.perf_counter() - start_calibration > 10:
-            return True
-        else:
-            print('{}s remaining'.format(int(10 - time.perf_counter() - start_calibration)))
-            return False
+            self.publish('ahrs.update', {
+                'heading': self.heading,
+                'roll': self.roll,
+                'pitch': self.pitch,
+            })
 
-    def get_mag_xyz():
-        imu.read_mag()
-        return imu.magnetometer_data
-
-    print('Calibrating Magnatometer: rotate the device in all directions')
-    ahrs.calibrate(getxyz=get_mag_xyz, stopfunc=stop_fnc)
-    count = 1
-    while True:
-        count += 1
-        accel, gyro, mag = imu.getMotion9()
-        ahrs.update(accel, gyro, mag)
-        time.sleep(0.02)
-        if count % 10 == 0:
-            print('roll: {:.2f}, pitch: {:.2f}, heading: {:.2f}'.format(ahrs.roll,
-                                                                        ahrs.pitch,
-                                                                        ahrs.heading))
+            if SIMULATION:
+                await asyncio.sleep(0.1)
+            else:
+                await asyncio.sleep(0.01)
