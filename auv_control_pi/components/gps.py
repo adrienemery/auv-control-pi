@@ -2,9 +2,10 @@ import os
 import asyncio
 import logging
 
+from auv_control_pi.utils import point_at_distance, Point
 from navio.gps import GPS
 from ..models import GPSLog
-from ..wamp import ApplicationSession, rpc
+from ..wamp import ApplicationSession, rpc, subscribe
 
 logger = logging.getLogger(__name__)
 PI = os.getenv('PI', False)
@@ -33,9 +34,19 @@ class GPSComponent(ApplicationSession):
         self.height_sea = None
         self.horizontal_accruacy = None
         self.vertiacl_accruracy = None
+        self.throttle = 0
+        self.heading = 0
 
     def onConnect(self):
         self.join(realm=self.config.realm)
+
+    @subscribe('auv.update')
+    def _update_auv(self, data):
+        self.throttle = data['throttle']
+
+    @subscribe('ahrs.update')
+    def _update_ahrs(self, data):
+        self.heading = data['heading']
 
     @rpc('gps.get_position')
     def get_position(self):
@@ -62,6 +73,12 @@ class GPSComponent(ApplicationSession):
             if PI:
                 msg = self.gps.update()
                 self._parse_msg(msg)
+            elif SIMULATION:
+                if self.throttle > 0:
+                    distance = self.throttle / 10
+                    new_point = point_at_distance(distance, self.heading, Point(self.lat, self.lng))
+                    self.lat = new_point.lat
+                    self.lng = new_point.lng
 
             payload = {
                 'lat': self.lat,

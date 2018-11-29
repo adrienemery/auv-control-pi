@@ -9,6 +9,13 @@ logger = logging.getLogger(__name__)
 config = Configuration.get_solo()
 
 
+def get_motor_speed(throttle, turn_speed):
+    turn_speed = abs(turn_speed)
+    motor_speed = 100 - turn_speed * 2
+    motor_speed = round(throttle * motor_speed / 100)
+    return motor_speed
+
+
 class AUV(ApplicationSession):
     """Main entry point for controling the Mothership and AUV
     """
@@ -44,8 +51,7 @@ class AUV(ApplicationSession):
         # as well as doing it from web interface
         self.left_motor.initialize()
         self.right_motor.initialize()
-
-        super().onJoin(details)
+        await super().onJoin(details)
 
     @rpc('auv.set_left_motor_speed')
     def set_left_motor_speed(self, speed):
@@ -78,11 +84,11 @@ class AUV(ApplicationSession):
         # left turn
         if turn_speed < 0:
             self.right_motor.speed = self.throttle
-            self.left_motor.speed = round(self.throttle * ((100 - abs(turn_speed)) / 100))
+            self.left_motor.speed = get_motor_speed(self.throttle, turn_speed)
 
         # right turn
         elif turn_speed > 0:
-            self.right_motor.speed = round(self.throttle * ((100 - abs(turn_speed)) / 100))
+            self.right_motor.speed = get_motor_speed(self.throttle, turn_speed)
             self.left_motor.speed = self.throttle
 
         # straight
@@ -118,7 +124,7 @@ class AUV(ApplicationSession):
 
     @rpc('auv.set_turn_val')
     def set_turn_val(self, turn_speed):
-        self.turn_speed = turn_speed
+        self.turn_speed = int(turn_speed)
         self._move()
 
     @rpc('auv.rotate_right')
@@ -140,6 +146,14 @@ class AUV(ApplicationSession):
         self.throttle = 0
         self.left_motor.reverse(speed)
         self.right_motor.forward(speed)
+
+    @rpc('auv.set_throttle')
+    def set_throttle(self, throttle):
+        throttle = int(throttle)
+        throttle = max(-self.throttle_limit, throttle)
+        throttle = min(self.throttle_limit, throttle)
+        self.throttle = throttle
+        self._move()
 
     @rpc('auv.forward_throttle')
     def forward_throttle(self, throttle=0):

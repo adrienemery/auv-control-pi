@@ -69,18 +69,14 @@ class Navitgator(ApplicationSession):
             'target_waypoint_distance': config.target_waypoint_distance
         }
 
-    @rpc('nav.get_target_waypoint_distance')
+    @rpc('nav.set_target_waypoint_distance')
     def set_target_waypoint_distance(self, target_waypoint_distance):
-        config.target_waypoint_distance = target_waypoint_distance
-        config.save()
-
-    @rpc('nav.set_navigation_values')
-    def set_navigation_values(self, target_waypoint_distance):
-        config.target_waypoint_distance = target_waypoint_distance
+        config.target_waypoint_distance = int(target_waypoint_distance)
         config.save()
 
     @rpc('nav.move_to_waypoint')
     def move_to_waypoint(self, waypoint):
+        self.call('auv.forward_throttle', 50)
         self.pid.auto_mode = True
         if isinstance(waypoint, dict):
             waypoint = Point(**waypoint)
@@ -124,6 +120,7 @@ class Navitgator(ApplicationSession):
                     except IndexError:
                         # otherwise we have arrived
                         self.arrived = True
+                        self.stop()
                         logger.info('Arrived at {}'.format(self.target_waypoint))
 
                 # otherwise keep steering towards the target waypoint
@@ -145,7 +142,7 @@ class Navitgator(ApplicationSession):
             })
             await asyncio.sleep(1 / self.update_frequency)
 
-    def _asteer(self):
+    def _steer(self):
         """Calculate heading error to feed into PID
         """
         # TODO think about how often should we update the target heading?

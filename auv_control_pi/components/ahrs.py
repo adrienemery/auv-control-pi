@@ -22,7 +22,7 @@ the CPU in a threaded environment. It sets magbias to the mean values of x,y,z
 import os
 import asyncio
 import logging
-from ..wamp import ApplicationSession, rpc
+from ..wamp import ApplicationSession, rpc, subscribe
 
 PI = os.getenv('PI', False)
 
@@ -60,6 +60,7 @@ class AHRS(ApplicationSession):
         gyro_meas_error = radians(270)         # Original code indicates this leads to a 2 sec response time
         self.beta = sqrt(3.0 / 4.0) * gyro_meas_error  # compute beta (see README)
         self.update_frequency = 10
+        self._simulated_heading = 0
 
     def onConnect(self):
         logger.info('Connecting to {} as {}'.format(self.config.realm, self.name))
@@ -85,25 +86,40 @@ class AHRS(ApplicationSession):
     def get_declination(self):
         return config.declination
 
+    @rpc('ahrs.get_board_offset')
+    def get_board_offset(self):
+        return config.board_offset
+
     @rpc('ahrs.set_declination')
     def set_declination(self, val):
         self.declination = float(val)
         config.declination = self.declination
         config.save()
 
+    @rpc('ahrs.set_board_offset')
+    def set_board_offset(self, val):
+        self.board_offset = float(val)
+        config.board_offset = self.board_offset
+        config.save()
+
+    @subscribe('auv.update')
+    def _simulate_heading(self, data):
+        if SIMULATION:
+            speed = data['turn_speed'] / 10
+            self._simulated_heading += speed
+
     @property
     def heading(self):
         if SIMULATION:
-            return 0
-
+            heading = self.declination + self.board_offset + self._simulated_heading
+            return clamp_angle(heading)
         else:
             offset = self.declination + self.board_offset
             heading = (
                 180 + degrees(radians(offset) + atan2(2.0 * (self.q[1] * self.q[2] + self.q[0] * self.q[3]),
                 self.q[0] * self.q[0] + self.q[1] * self.q[1] - self.q[2] * self.q[2] - self.q[3] * self.q[3]))
             )
-            heading = clamp_angle(heading)
-            return heading
+            return clamp_angle(heading)
 
     @property
     def pitch(self):

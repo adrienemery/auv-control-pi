@@ -1,6 +1,6 @@
 import time
 from collections import deque, namedtuple
-from pygc import great_distance
+from pygc import great_distance, great_circle
 
 Point = namedtuple('Point', ['lat', 'lng'])
 
@@ -19,6 +19,16 @@ def clamp_angle(deg):
     n_rotations = deg // 360
     deg -= 360 * n_rotations
     return deg
+
+
+def point_at_distance(distance, heading, current_point):
+    result = great_circle(
+        distance=distance,
+        azimuth=heading,
+        latitude=current_point.lat,
+        longitude=current_point.lng
+    )
+    return Point(result['latitude'], result['longitude'])
 
 
 def heading_to_point(point_a, point_b):
