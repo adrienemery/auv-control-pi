@@ -45,6 +45,49 @@ stored in the database.
 
 ## Development
 
+### Writing Components
+
+New components should be put in the `auv_control_pi/components/` folder. 
+
+Below is an example of a component with rpc/subsriptions/publishing is shown below.
+
+```python
+from auv_control_pi.wamp import ApplicationSession, rpc, subscribe
+
+class NewComponent(ApplicationSession):
+
+    @rpc('new_component.call_me')  
+    def call_me(self, val):
+        """This is an RPC method since we used the @rpc decorator""""
+        # do stuff
+        pass
+        
+   @subsribe('gps.update')
+   def handle_gps(self, data):
+       """Handler to the subscription to `gps.update` topic"""
+       # process data that is being published by the gps component
+       pass
+       
+   async def update(self):
+       """The `update` method will be run in the asyncio event loop
+       
+       Put logic here that needs to run indefinately.       
+       """"
+       while True:
+           # do cool stuff
+
+           # build a payload to publish
+           update_payload = {} 
+
+           # publish updates so other components can subscribe to       
+           self.publish('new_component.update', update_payload)
+
+           # sleep a bit at some frequency
+           await asyncio.sleep(0.1)         
+       
+    
+```
+
 ### Local
 
 ```bash
@@ -53,7 +96,7 @@ $ docker-compose up
 ```
 
 
-## Raspberry PI
+### Raspberry PI
 
 Follow the navio [instructions](https://docs.emlid.com/navio2/common/ardupilot/configuring-raspberry-pi/)
 to setup the RasPi using the custom Navio Raspbian image:
