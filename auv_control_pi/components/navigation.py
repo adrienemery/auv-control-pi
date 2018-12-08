@@ -25,16 +25,13 @@ class Navitgator(ApplicationSession):
         self.update_frequency = 10
         self.arrived = False
         self.waypoints = deque()
+        self.completed_waypoints = []
         # the pid setpoint is the error setpoint
         # and thus we always want the error to be 0 regardless of the scale
         # we use to feed into the pid.
         self.pid = PID(config.kP, config.kI, config.kD, setpoint=0, output_limits=(-100, 100))
         self.pid_output = None
         self.heading_error = None
-
-    def onConnect(self):
-        logger.info('Connecting to {} as {}'.format(self.config.realm, 'navigation'))
-        self.join(realm=self.config.realm)
 
     @subscribe('ahrs.update')
     def _update_ahrs(self, data):
@@ -90,13 +87,13 @@ class Navitgator(ApplicationSession):
     def start_trip(self, waypoints=None):
         if waypoints:
             self.waypoints = deque(waypoints)
-        self.move_to_waypoint(self.waypoints.popleft())
+            self.completed_waypoints = []
+            self.move_to_waypoint(self.waypoints.popleft())
 
-    @rpc('nav.pause_trip')
-    def pause_trip(self):
-        # push the current waypoint back on the stack
-        self.waypoints.appendleft(self.target_waypoint)
-        self.target_waypoint = None
+    @rpc('nav.resume_trip')
+    def resume_trip(self):
+        if not self.arrived:
+            self.move_to_waypoint(self.target_waypoint)
 
     @rpc('nav.stop')
     def stop(self):
@@ -115,6 +112,7 @@ class Navitgator(ApplicationSession):
                 # at the waypoint
                 if self.distance_to_target <= config.target_waypoint_distance:
                     try:
+                        self.completed_waypoints.append(self.target_waypoint._asdict())
                         # if there are waypoints qeued up keep going
                         self.move_to_waypoint(self.waypoints.popleft())
                     except IndexError:
@@ -131,6 +129,8 @@ class Navitgator(ApplicationSession):
             self.publish('nav.update', {
                 'enabled': self.enabled,
                 'target_waypoint': self.target_waypoint._asdict() if self.target_waypoint else None,
+                'completed_waypoints': list(self.completed_waypoints),
+                'waypoints': list(self.waypoints),
                 'target_heading': self.target_heading,
                 'kP': self.pid.Kp,
                 'kI': self.pid.Ki,

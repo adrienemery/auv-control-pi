@@ -37,9 +37,6 @@ class GPSComponent(ApplicationSession):
         self.throttle = 0
         self.heading = 0
 
-    def onConnect(self):
-        self.join(realm=self.config.realm)
-
     @subscribe('auv.update')
     def _update_auv(self, data):
         self.throttle = data['throttle']

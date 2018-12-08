@@ -19,8 +19,7 @@ def get_motor_speed(throttle, turn_speed):
 class AUV(ApplicationSession):
     """Main entry point for controling the Mothership and AUV
     """
-
-    update_method = 'update'
+    name = 'auv'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -39,10 +38,6 @@ class AUV(ApplicationSession):
         self.throttle_limit = 90
         self.turn_speed = 0
         self.update_frequency = 10
-
-    def onConnect(self):
-        logger.info('Connecting to {} as {}'.format(self.config.realm, 'auv'))
-        self.join(realm=self.config.realm)
 
     async def onJoin(self, details):
         """Register functions for access via RPC and start update loops

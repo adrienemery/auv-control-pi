@@ -43,8 +43,7 @@ class AHRS(ApplicationSession):
     This uses the Madgwick algorithm.
     The update method must be called peiodically.
     """
-
-    name = 'AHRS'
+    name = 'ahrs'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -61,10 +60,6 @@ class AHRS(ApplicationSession):
         self.beta = sqrt(3.0 / 4.0) * gyro_meas_error  # compute beta (see README)
         self.update_frequency = 10
         self._simulated_heading = 0
-
-    def onConnect(self):
-        logger.info('Connecting to {} as {}'.format(self.config.realm, self.name))
-        self.join(realm=self.config.realm)
 
     def calibrate(self, getxyz, stopfunc, waitfunc=None):
         magmax = list(getxyz())             # Initialise max and min lists with current values

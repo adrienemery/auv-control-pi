@@ -60,6 +60,10 @@ class ApplicationSession(AutobahnApplicationSession):
         handlers = [method for method in methods if getattr(method, 'is_subcription', False)]
         return {method.topic: method for method in handlers}
 
+    def onConnect(self):
+        logger.info('Connecting to {} as {}'.format(self.config.realm, self.name))
+        self.join(realm=self.config.realm)
+
     async def onJoin(self, details):
         logger.info('Joined realm as {}'.format(self.name))
         for rpc_uri, method in self.rpc_methods(self).items():
