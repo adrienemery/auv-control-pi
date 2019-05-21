@@ -46,6 +46,22 @@ services:
     depends_on:
       - crossbar
 
+  camera:
+    image: auv_control
+    restart: always
+    volumes:
+      - .:/code
+      - logvolume01:/var/log
+      - dbdata:/data
+    environment:
+      - DB_NAME=/data/db.sqlite3
+      - SIMULATION=True
+    command: python manage.py runcamera
+    links:
+      - crossbar
+    depends_on:
+      - crossbar
+
   gps:
     image: auv_control
     restart: always
@@ -95,23 +111,20 @@ services:
     depends_on:
       - crossbar
 
-
-  remoteproxy:
-    image: auv_control
-    restart: always
-    volumes:
-      - .:/code
-      - logvolume01:/var/log
-      - dbdata:/data
-    environment:
-      - DB_NAME=/data/db.sqlite3
-    command: python manage.py runremote
-    links:
-      - crossbar
-#      - auvwamp
-    depends_on:
-      - crossbar
-#      - auvwamp
+#  remoteproxy:
+#    image: auv_control
+#    restart: always
+#    volumes:
+#      - .:/code
+#      - logvolume01:/var/log
+#      - dbdata:/data
+#    environment:
+#      - DB_NAME=/data/db.sqlite3
+#    command: python manage.py runremote
+#    links:
+#      - crossbar
+#    depends_on:
+#      - crossbar
 
 volumes:
   logvolume01: {}
